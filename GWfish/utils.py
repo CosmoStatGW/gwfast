@@ -112,3 +112,14 @@ def phi_to_ra_degminsec(phi):
 def GPSt_to_J200t(t_GPS):
     # According to https://www.andrews.edu/~tzs/timeconv/timedisplay.php the GPS time of J2000 is 630763148 s
     return t_GPS - 630763148.0
+
+def GPSt_to_LMST(t_GPS, lat, long):
+    #Returns the Local Mean Sideral Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
+    from astropy.coordinates import EarthLocation
+    import astropy.time as aspyt
+    import astropy.units as u
+    loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
+    t = aspyt.Time(df.geocent_time, format='gps', location=(ETloc))
+    LMST = t.sidereal_time('mean').value
+    
+    return LMST/24.
