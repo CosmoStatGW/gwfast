@@ -32,11 +32,20 @@ class WaveFormModel(ABC):
     Abstract class to compute waveforms
     '''
     
-    def __init__(self, objType, fcutNum):
+    def __init__(self, objType, fcutNum, is_newtonian=False):
         # The kind of system the wf model is made for, can be 'BBH' or 'BNS'
         self.objType = objType 
         # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun)
         self.fcutNum = fcutNum
+        
+        self.ParNums = {'Mc':0, 'dL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'eta':7, 'Phicoal':8}
+        self.is_newtonian=is_newtonian
+        
+        if is_newtonian:
+            # In the Newtonian case eta is not included in the Fisher, since it does not enter the signal
+            self.ParNums['Phicoal']=7
+            self.ParNums.pop('eta', None)
+
     
     @abstractmethod    
     def Phi(self, f, **kwargs): 
@@ -77,7 +86,7 @@ class NewtInspiralBNS(WaveFormModel):
     
     def __init__(self): 
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1)
-        super().__init__('BNS', 0.04/(2.*np.pi*glob.GMsun_over_c3))
+        super().__init__('BNS', 0.04/(2.*np.pi*glob.GMsun_over_c3), is_newtonian=True)
     
     def Phi(self, f, **kwargs):
         return -3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)  
@@ -95,7 +104,7 @@ class NewtInspiralBBH(WaveFormModel):
     
     def __init__(self):
         # From M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
-        super().__init__('BBH', 4400.)
+        super().__init__('BBH', 4400., is_newtonian=True)
     
     def Phi(self, f, **kwargs):
         return -3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)  
