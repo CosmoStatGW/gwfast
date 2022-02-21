@@ -7,6 +7,7 @@ Created on Tue Feb  8 17:22:56 2022
 """
 
 import numpy as onp
+import utils
 import fisherTools
 
 
@@ -41,15 +42,17 @@ class DetNet(object):
     
     
     def CovMatr(self, evParams, 
-                    ParMarg= None,  
                     FisherM=None, 
                     res=1000, 
                     invMethod='inv', 
                     condNumbMax=1e15, 
                    get_individual = True, 
                    return_inv_err=False,
-                   return_dL_derivs=True):
+                   return_dL_derivs = True, 
+                   use_sin_iota=False,
+                   use_reweighting=True):
         
+        utils.check_evparams(evParams)
         
         if FisherM is None:
             # Compute total Fisher (which also computes individial Fishers)
@@ -63,19 +66,36 @@ class DetNet(object):
                 if FisherM is None:
                     FisherM_ = None
                 print('\nComputing Covariance for %s...' %d)
-                CovMatrices[d], _, _ =  self.signals[d].CovMatr(evParams, ParMarg=ParMarg, FisherM=FisherM_, res=res,invMethod=invMethod, condNumbMax=condNumbMax, return_dL_derivs=return_dL_derivs ) 
+                CovMatrices[d],  _ =  fisherTools.CovMatr(FisherM_, evParams, 
+                                                                #FisherM=FisherM_, 
+                                                                res=res,
+                                                                invMethod=invMethod, 
+                                                                condNumbMax=condNumbMax, 
+                                                                return_dL_derivs = return_dL_derivs, 
+                                                                use_sin_iota=use_sin_iota, 
+                                                                use_reweighting=use_reweighting
+                                                                ) 
 
         print('\nComputing total covariance ...')
-        Cov, parNums, _ = list(self.signals.values())[0].CovMatr(evParams, ParMarg=ParMarg, FisherM=FisherM, res=res,invMethod=invMethod, condNumbMax=condNumbMax, return_dL_derivs=return_dL_derivs )
+        Cov, _ = fisherTools.CovMatr(FisherM, evParams, 
+                                              #FisherM=FisherM, 
+                                              res=res,
+                                              invMethod=invMethod, 
+                                              condNumbMax=condNumbMax, 
+                                              return_dL_derivs = return_dL_derivs, 
+                                              use_sin_iota=use_sin_iota, 
+                                              use_reweighting=use_reweighting
+                                              )
         print('Done.')
         #print(Cov.shape)
         eps=None
         if return_inv_err:
             if return_dL_derivs:
                 print('Converting Fisher to dL to check inversion error...')
-                FisherM_check = fisherTools.log_dL_to_dL_derivative_fish(FisherM, parNums, evParams)
+                FisherM_check = fisherTools.log_dL_to_dL_derivative_fish(FisherM, {'logdL':1}, evParams)
             else: FisherM_check = FisherM
-            eps = [ onp.linalg.norm(Cov[:, :, i]@FisherM_check[:, :, i]-onp.identity(Cov.shape[0]), ord=onp.inf) for i in range(FisherM_check.shape[-1])]
+            # TODO : vectorize this
+            eps = [ onp.linalg.norm(Cov[:, :, i]@FisherM_check[:, :, i]-onp.identity(Cov.shape[0]), ord=onp.inf) for i in range(FisherM.shape[-1])]
             print('Inversion error: %s ' %str(eps))
-        return Cov, parNums, eps, CovMatrices
+        return Cov, eps, CovMatrices
         
