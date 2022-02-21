@@ -392,14 +392,7 @@ class GWSignal(object):
     
     
     def FisherMatr(self, evParams, res=1000):
-        
-        try:
-            evParams['logdL']
-        except KeyError:
-            try:
-                evParams['logdL'] = np.log(evParams['dL'])
-            except KeyError:
-                raise ValueError('One among dL and logdL has to be provided.')
+
         
         utils.check_evparams(evParams)
   
