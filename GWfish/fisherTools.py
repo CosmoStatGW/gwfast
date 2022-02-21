@@ -14,10 +14,97 @@ import numpy as onp
 #import numpy as np
 import jax.numpy as np
 import copy
+import GWfish.utils as utils
 
 ##############################################################################
 # INVERSION AND SANITY CHECKS
 ##############################################################################
+
+
+def CovMatr(FisherM, evParams, 
+            res=1000, 
+                invMethod='inv', condNumbMax=1.0e15, 
+                return_inv_err=False, 
+                return_dL_derivs = True, 
+                use_sin_iota=False,
+                use_reweighting = 'diag'):
+        
+        
+        utils.check_evparams(evParams)
+    
+        FisherM_or = None
+        
+        #if use_log_dL:
+        #    FisherM_or = copy.deepcopy(FisherM)
+            #ws_dL = np.array([np.diag(ev['dL']) for ev in evParams])
+        #    ws_dL= np.array([np.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
+        #    ws_dL = ws_dL.at[:, 1,1].set(evParams['dL'])
+        #    FisherM = (ws_dL@((FisherM.T@ws_dL).T).T).T
+        
+        if use_sin_iota:
+            #if FisherM_or is not None:
+            FisherM_or = copy.deepcopy(FisherM)
+            #ws_i = np.array([np.diag(np.cos(ev['iota'])) for ev in evParams])
+            ws_i= np.array([np.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
+            ws_i = ws_i.at[:, 4,4].set(1/np.cos(evParams['iota']))
+            FisherM = (ws_i@((FisherM.T@ws_i).T).T).T
+        
+        
+        if use_reweighting=='diag':
+            if FisherM_or is not None:
+                FisherM_or = copy.deepcopy(FisherM)
+            # Divide by max of each row to improve invertibility
+            
+            ws_ =  np.diagonal(FisherM) #np.max(FisherM, axis=(0)).T
+            ws = np.array([np.diag(1/np.sqrt(w)) for w in ws_]) #np.array([np.diag(1/w) for w in ws_])
+            FisherM = (ws@((FisherM.T@ws).T).T).T #(FisherM.T@ws).T
+        elif use_reweighting=='max':
+            if FisherM_or is not None:
+                FisherM_or = copy.deepcopy(FisherM)
+            
+            ws_ =  np.max(FisherM, axis=(0)).T
+            ws = np.array([np.diag(1/w) for w in ws_])
+            FisherM = (FisherM.T@ws).T
+        else: FisherM_or=FisherM
+        
+        evals, evecs, condNumber = CheckFisher(FisherM, condNumbMax=condNumbMax)
+        
+
+        CovMatr = inverse_vect(FisherM, invMethod=invMethod)        
+        CovMatr[:, :, onp.squeeze(np.where(condNumber>condNumbMax))] = np.full(CovMatr[:, :, onp.squeeze(np.where(condNumber>condNumbMax))].shape, np.nan)
+        
+
+        if use_reweighting=='diag':
+            # Restore weights
+            CovMatr = (ws@((CovMatr.T@ws).T).T).T #(ws@CovMatr.T).T
+        elif use_reweighting=='max':
+            CovMatr = (ws@CovMatr.T).T
+        
+        if use_sin_iota:
+            CovMatr = (ws_i@((CovMatr.T@ws_i).T).T).T
+        
+        
+        
+        eps= None
+        if return_inv_err:
+                eps = [ onp.linalg.norm(CovMatr[:, :, i]@FisherM_or[:, :, i]-onp.identity(CovMatr.shape[0]), ord=onp.inf) for i in range(FisherM.shape[-1])]
+                print('Inversion error: %s ' %str(eps))
+
+            
+        if return_dL_derivs:
+            print('Switching from derivatives wrt logdL to derivatives wrt dL...')
+            #CovMatr = (ws_dL@((CovMatr.T@ws_dL).T).T).T
+            CovMatr = log_dL_to_dL_derivative_cov(CovMatr, {'logdL':1}, evParams)
+            
+        #if return_dL_derivs:
+        #    print('Switching from derivatives wrt logdL to derivatives wrt dL...')
+        #    CovMatr = fisherTools.log_dL_to_dL_derivative_cov(CovMatr, ParNums, evParams)
+             #print('Inversion error: %s ' %str(eps))
+        
+        return CovMatr,  eps
+
+
+
 
 def inverse_vect(A, invMethod):
         # Compute the inverse of matrices in an array of shape (N,N,M)
@@ -66,7 +153,7 @@ def CheckFisher(FisherM, condNumbMax=1.0e15):
 def perturb_Fisher(totF, myNet, events, eps=1e-10):
     
     #_, parnums_ = myNet.signals[list(myNet.signals.keys())[0]].CovMatr(events)
-    Cov_base, _, _, _ = myNet.CovMatr(events, ParMarg=None, FisherM=totF, get_individual=False)
+    Cov_base,  _, _ = myNet.CovMatr(events, FisherM=totF, get_individual=False)
     #print('Forecasted dL error, true Fisher:')
     #print(onp.sqrt(Cov_base[1, 1])*1000)
     
@@ -75,7 +162,7 @@ def perturb_Fisher(totF, myNet, events, eps=1e-10):
     #print(DelOmegaDegSq_base)
 
     totF_random = totF + onp.random.rand(*totF.shape)*eps
-    Cov, _, _, _ = myNet.CovMatr(events, ParMarg=None, FisherM=totF_random, get_individual=False)
+    Cov,  _, _ = myNet.CovMatr(events, FisherM=totF_random, get_individual=False)
     
     #print('Forecasted dL error:')
     #print(onp.sqrt(Cov[1, 1])*1000)
@@ -85,8 +172,8 @@ def perturb_Fisher(totF, myNet, events, eps=1e-10):
     #print('Forecasted Localization error:')
     #print(DelOmegaDegSq)
     
-    epsErr = [onp.linalg.norm( Cov_base[i]-Cov[i], ord=onp.inf) for i in range(Cov.shape[-1])]
-    print('Errors: %s' %epsErr)
+    epsErr = [onp.linalg.norm( Cov_base[i]/Cov[i]-1, ord=onp.inf) for i in range(Cov.shape[-1])]
+    print('Relative errors: %s' %epsErr)
 
 
 def check_covariance(FisherM, Cov, tol=1e-10):
@@ -153,28 +240,29 @@ def addPrior(Matr, vals, ParNums, ParAdd):
 
 
 def log_dL_to_dL_derivative_cov(or_matrix, ParNums, evParams):
+    
     matrix = copy.deepcopy(or_matrix)
-    for i in range(matrix.shape[-1]):
+    #for i in range(matrix.shape[-1]):
         # This has to be vectorised
-        try:
-            matrix = matrix.at[:, ParNums['logdL'], i ].set(matrix[:, ParNums['logdL'], i]* np.exp(evParams['logdL']))
-            matrix = matrix.at[ ParNums['logdL'], : , i ].set(matrix[ParNums['logdL'], :, i]* np.exp(evParams['logdL']))
-        except AttributeError:
-            matrix[:, ParNums['logdL'], i] *= np.exp(evParams['logdL'])
-            matrix[ ParNums['logdL'], :, i] *= np.exp(evParams['logdL'])
+    try:
+            matrix = matrix.at[:, ParNums['logdL'], : ].set(matrix[:, ParNums['logdL'], :]* np.exp(evParams['logdL']))
+            matrix = matrix.at[ ParNums['logdL'], : , : ].set(matrix[ParNums['logdL'], :, :]* np.exp(evParams['logdL']))
+    except AttributeError:
+            matrix[:, ParNums['logdL'], :] *= np.exp(evParams['logdL'])
+            matrix[ ParNums['logdL'], :, :] *= np.exp(evParams['logdL'])
     return matrix
 
 
 def log_dL_to_dL_derivative_fish(or_matrix, ParNums, evParams):
     matrix = copy.deepcopy(or_matrix)
-    for i in range(matrix.shape[-1]):
+    #for i in range(matrix.shape[-1]):
         # This has to be vectorised
-        try:
-            matrix = matrix.at[:, ParNums['logdL'], i ].set(matrix[:, ParNums['logdL'], i]/ np.exp(evParams['logdL']))
-            matrix = matrix.at[ ParNums['logdL'], : , i ].set(matrix[ ParNums['logdL'], :, i]/ np.exp(evParams['logdL']))
-        except AttributeError:
-            matrix[:, ParNums['logdL'], i] /= np.exp(evParams['logdL'])
-            matrix[ ParNums['logdL'], :, i] /= np.exp(evParams['logdL'])
+    try:
+            matrix = matrix.at[:, ParNums['logdL'], : ].set(matrix[:, ParNums['logdL'], :]/ np.exp(evParams['logdL']))
+            matrix = matrix.at[ ParNums['logdL'], : , : ].set(matrix[ ParNums['logdL'], :, :]/ np.exp(evParams['logdL']))
+    except AttributeError:
+            matrix[:, ParNums['logdL'], :] /= np.exp(evParams['logdL'])
+            matrix[ ParNums['logdL'], :, :] /= np.exp(evParams['logdL'])
     return matrix
     
     
