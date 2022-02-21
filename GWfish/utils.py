@@ -112,3 +112,21 @@ def phi_to_ra_degminsec(phi):
 def GPSt_to_J200t(t_GPS):
     # According to https://www.andrews.edu/~tzs/timeconv/timedisplay.php the GPS time of J2000 is 630763148 s
     return t_GPS - 630763148.0
+
+
+
+def check_evparams(evParams):
+        try:
+            evParams['logdL']
+        except KeyError:
+            try:
+                evParams['logdL'] = np.log(evParams['dL'])
+            except KeyError:
+                raise ValueError('One among dL and logdL has to be provided.')
+        #try:
+        #    evParams['cosiota']
+        #except KeyError:
+        #    try:
+        #        evParams['cosiota'] = np.cos(evParams['iota'])
+        #    except KeyError:
+        #        raise ValueError('One among dL and logdL has to be provided.')
