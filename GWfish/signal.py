@@ -47,9 +47,9 @@ class GWSignal(object):
                 det_xax=0., 
                 verbose=False,
                 useEarthMotion = False,
-                fmin=5,
+                fmin=5, fmax=None,
                 IntTablePath=None,
-                WindowWidth = 5.):
+                DutyFactor=None):
         
         if (detector_shape!='L') and (detector_shape!='T'):
             raise ValueError('Enter valid detector configuration')
@@ -79,6 +79,8 @@ class GWSignal(object):
         self.det_xax_rad  = det_xax*np.pi/180.
         
         self.IntTablePath = IntTablePath
+        #This is the percentage of time each arm of the detector (or the whole detector for an L) is supposed to be operational
+        self.DutyFactor = DutyFactor
         
         noise = onp.loadtxt(psd_path, usecols=(0,1))
         f = noise[:,0]
@@ -94,7 +96,8 @@ class GWSignal(object):
         self.fcutNum = wf_model.fcutNum
         self.useEarthMotion = useEarthMotion
         self.fmin = fmin #Hz
-        self.WindowWidth = WindowWidth
+        self.fmax = fmax #Hz or None
+        
         if detector_shape == 'L':
             self.angbtwArms = 0.5*np.pi
         elif detector_shape == 'T':
@@ -224,7 +227,7 @@ class GWSignal(object):
             
             return b1 + b2 + b3 + b4
         
-        rot_rad = rot*np.pi/180
+        rot_rad = rot*np.pi/180.
         
         ras, decs = self._ra_dec_from_th_phi(theta, phi)
         afac = afun(ras, decs, t, rot_rad)
@@ -327,14 +330,16 @@ class GWSignal(object):
         PhiGw = self.wf_model.Phi(f, **evParams)
         return 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGw
         
-    def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=False):
+
+    def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0.):
+
         # Full GW strain expression (complex)
         # Here we have the decompressed parameters and we put them back in a dictionary just to have an easier
         # implementation of the JAX module for derivatives
         evParams = {'Mc':Mc, 'dL':dL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':eta, 'Phicoal':Phicoal}
         if self.useEarthMotion:
             # Compute Doppler contribution
-            t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
+            t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
             phiD, ddot_phiD = self._phiDoppler(theta, phi, t, f)
             phiP = self._phiPhase(theta, phi, t, iota, psi)
         else:
@@ -343,18 +348,6 @@ class GWSignal(object):
         phiL = self._phiLoc(theta, phi, t, f)
         Ap, Ac = self.GWAmplitudes(evParams, f, ddot_phiDoppler=ddot_phiD, rot=rot)
         Psi = self.GWPhase(evParams, f) + phiD + phiL #+ phiP
-        
-        if (useWindow) and (not np.isscalar(f)):
-            # Use a Welch window on the signal for better performance in the derivatives
-            Ampl = np.where(f<=self.fmin+self.WindowWidth, np.sqrt(Ap**2 + Ac**2)*(1. - ((f-self.WindowWidth-self.fmin)/self.WindowWidth)**2), np.sqrt(Ap**2 + Ac**2))
-
-            #Ampl = np.sqrt(Ap**2 + Ac**2)
-            #fmaxmask = np.tile(fmaxarr, (f.shape[0],1))
-            #print(fmaxmask.shape)
-            #Ampl = np.where(f>=fmaxmask-self.WindowWidth, Ampl*(1.-((f-fmaxmask+self.WindowWidth)/self.WindowWidth)**2), Ampl)
-            #Ampl = np.where(f>=max(f)-self.WindowWidth, Ampl*(1.-((f-max(f)+self.WindowWidth)/self.WindowWidth)**2), Ampl)
-        else:
-            Ampl = np.sqrt(Ap**2 + Ac**2)
             
         return (Ap + Ac*1j)*np.exp(Psi*1j)
         #return Ampl*np.exp(Psi*1j)
@@ -368,21 +361,29 @@ class GWSignal(object):
             SNR = 0
         
         fcut = self.fcutNum/(evParams['Mc']/(evParams['eta']**(3./5.)))
-        fcut = np.full(evParams['eta'].shape, 100.)
+        
+        if self.fmax is not None:
+            fcut = np.where(fcut > self.fmax, self.fmax, fcut)
+            
         fminarr = np.full(fcut.shape, self.fmin)
         fgrids = np.geomspace(fminarr,fcut,num=int(res))
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
-        #strainGrids = np.ones(fgrids.shape)
+        
         if self.detector_shape=='L':    
             Aps, Acs = self.GWAmplitudes(evParams, fgrids, ddot_phiDoppler=None)
             Atot = Aps*Aps + Acs*Acs
             SNR = np.sqrt(np.trapz(Atot/strainGrids, fgrids, axis=0))
-        
+            if self.DutyFactor is not None:
+                excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                SNR = SNR*excl
         elif self.detector_shape=='T':
             for i in range(3):
                 Aps, Acs = self.GWAmplitudes(evParams, fgrids, ddot_phiDoppler=None, rot=i*60.)
                 Atot = Aps*Aps + Acs*Acs
                 tmpSNRsq = np.trapz(Atot/strainGrids, fgrids, axis=0)
+                if self.DutyFactor is not None:
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpSNRsq = tmpSNRsq*excl
                 SNR = SNR + tmpSNRsq
             SNR = np.sqrt(SNR)
         
@@ -390,7 +391,15 @@ class GWSignal(object):
         return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
     
     
-    def FisherMatr(self, evParams, res=1000, fst=100, useWindow=False):
+    def FisherMatr(self, evParams, res=1000):
+        
+        try:
+            evParams['logdL']
+        except KeyError:
+            try:
+                evParams['logdL'] = np.log(evParams['dL'])
+            except KeyError:
+                raise ValueError('One among dL and logdL has to be provided.')
         
         utils.check_evparams(evParams)
   
@@ -398,7 +407,8 @@ class GWSignal(object):
         iota, psi, tcoal, eta, Phicoal = evParams['iota'].astype('complex128'), evParams['psi'].astype('complex128'), evParams['tcoal'].astype('complex128'), evParams['eta'].astype('complex128'), evParams['Phicoal'].astype('complex128')
         
         fcut = self.fcutNum/(Mc/(eta**(3./5.))) 
-        #print(fcut)
+        if self.fmax is not None:
+            fcut = np.where(fcut > self.fmax, self.fmax, fcut)
         fminarr = np.full(fcut.shape, self.fmin)
         fgrids = np.geomspace(fminarr,fcut,num=int(res))
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
@@ -413,11 +423,7 @@ class GWSignal(object):
         
         if self.detector_shape=='L': 
             #Build gradient
-            if useWindow:
-                GWstrainUse = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=useWindow)
-                dh = vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))
-            else:
-                dh = vmap(jacrev(self.GWstrain, argnums=derivargs, holomorphic=True))
+            dh = vmap(jacrev(self.GWstrain, argnums=derivargs, holomorphic=True))
             
             FisherDerivs = np.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal))
             
@@ -439,7 +445,9 @@ class GWSignal(object):
             Fisher = onp.zeros((nParams,nParams,len(Mc)))
             for i in range(3):
                 # Change rot
-                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=i*60., useWindow=useWindow)
+
+                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=i*60., )
+
                 # Build gradient
                 dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
             
@@ -460,11 +468,7 @@ class GWSignal(object):
                         
                         tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
                 Fisher += tmpFisher
-            #dhst = vmap(jacrev(self.GWstrain, argnums=(1,2,3,4,5,6,7,9), holomorphic=True))
-            #FisherDerivst = onp.asarray(dhst(np.array([fst]), Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal))
-            #FisherIntegrandst = (onp.conjugate(FisherDerivst[:,:])*FisherDerivst.T)
-            #print(FisherIntegrandst*1e50)
-            #print(FisherDerivst)
+            
         return Fisher
     
     
@@ -490,6 +494,8 @@ class GWSignal(object):
         fac = np.sqrt(5./6.)/np.pi**(2./3.)*(glob.GMsun_over_c3*Mc)**(5./6.)*glob.clightGpc/dL#*np.exp(-logdL)
         
         fcut = self.fcutNum/(Mc/(eta**(3./5.)))
+        if self.fmax is not None:
+            fcut = np.where(fcut > self.fmax, self.fmax, fcut)
         mask = self.strainFreq >= self.fmin
         
         def CoeffsRot(ra, dec, psi, rot=0.):

@@ -130,3 +130,15 @@ def check_evparams(evParams):
         #        evParams['cosiota'] = np.cos(evParams['iota'])
         #    except KeyError:
         #        raise ValueError('One among dL and logdL has to be provided.')
+        
+        
+def GPSt_to_LMST(t_GPS, lat, long):
+  #Returns the Local Mean Sideral Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
+  from astropy.coordinates import EarthLocation
+  import astropy.time as aspyt
+  import astropy.units as u
+  loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
+  t = aspyt.Time(t_GPS, format='gps', location=(loc))
+  LMST = t.sidereal_time('mean').value
+  return np.array(LMST/24.)
+
