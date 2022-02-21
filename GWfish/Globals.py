@@ -24,7 +24,11 @@ detPath=os.path.join(dirName, 'psds')
 ##############################################################################
 
 
-GMsun_over_c3 = 4.92564e-6
+
+GMsun_over_c3 = 4.925491025543575903411922162094833998e-6 # seconds
+GMsun_over_c2 = 1.476625061404649406193430731479084713e3 # meters
+uGpc = 3.085677581491367278913937957796471611e25 # meters
+GMsun_over_c2_Gpc = GMsun_over_c2/uGpc # Gpc
 
 REarth = 6371.00 #km
         
