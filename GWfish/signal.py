@@ -269,6 +269,10 @@ class GWSignal(object):
         
         return phiL
     
+    
+        
+    
+    
     def GWAmplitudes(self, evParams, f, ddot_phiDoppler=None, rot=0.):
         # evParams are all the parameters characterizing the event(s) under exam. It has to be a dictionary containing the entries: 
         # Mc -> chirp mass (Msun), logdL -> log of luminosity distance (Gpc), theta & phi -> sky position (rad), iota -> inclination angle of orbital angular momentum to l.o.s toward the detector,
@@ -287,24 +291,18 @@ class GWSignal(object):
         
         '''
         
-        try:
-            evParams['logdL']
-        except KeyError:
-            try:
-                evParams['logdL'] = np.log(evParams['dL'])
-            except KeyError:
-                raise ValueError('One among dL and logdL has to be provided.')
+        #self._check_evparams(evParams)
         
-        Mc, logdL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['logdL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta'] 
-        def A0(logdL, Mc, f):
+        Mc, dL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['dL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta'] 
+        def A0(dL, Mc, f):
             # First common term of the amplitude
             #return 2.*(clightGpc/dL)*((GMsun_over_c3*Mc)**(5./3.))*((np.pi*f)**(2./3.))
-            return 2.*glob.clightGpc*np.exp(-logdL)*((glob.GMsun_over_c3*Mc)**(5./3.))*((np.pi*f)**(2./3.))
+            return 2.*glob.clightGpc/dL*((glob.GMsun_over_c3*Mc)**(5./3.))*((np.pi*f)**(2./3.))
         
         if self.useEarthMotion:
             # Earth motion gives a relevant contribution only for BNSs, for which Newtonian or restricted PN approximation works
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
-            overallAmpl = A0(logdL, Mc, f)
+            overallAmpl = A0(dL, Mc, f)
             ddot_Phi = self.wf_model.ddot_Phi(f, **evParams)
             if ddot_phiDoppler is None:
                 _, ddot_phiDoppler = self._phiDoppler(theta, phi, t, f)
@@ -314,7 +312,7 @@ class GWSignal(object):
             
         else:
             t = tcoal - self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
-            overallAmpl = A0(logdL, Mc, f)
+            overallAmpl = A0(dL, Mc, f)
             mod_Ampl = self.wf_model.ampl_mod_fac(f, **evParams)
             ddot_Phi = self.wf_model.ddot_Phi(f, **evParams)
             Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
@@ -329,11 +327,11 @@ class GWSignal(object):
         PhiGw = self.wf_model.Phi(f, **evParams)
         return 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGw
         
-    def GWstrain(self, f, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=False):
+    def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=False):
         # Full GW strain expression (complex)
         # Here we have the decompressed parameters and we put them back in a dictionary just to have an easier
         # implementation of the JAX module for derivatives
-        evParams = {'Mc':Mc, 'logdL':logdL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':eta, 'Phicoal':Phicoal}
+        evParams = {'Mc':Mc, 'dL':dL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':eta, 'Phicoal':Phicoal}
         if self.useEarthMotion:
             # Compute Doppler contribution
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
@@ -394,7 +392,9 @@ class GWSignal(object):
     
     def FisherMatr(self, evParams, res=1000, fst=100, useWindow=False):
         
-        Mc, logdL, theta, phi = evParams['Mc'].astype('complex128'), evParams['logdL'].astype('complex128'), evParams['theta'].astype('complex128'), evParams['phi'].astype('complex128')
+        utils.check_evparams(evParams)
+  
+        Mc, dL, theta, phi = evParams['Mc'].astype('complex128'), evParams['dL'].astype('complex128'), evParams['theta'].astype('complex128'), evParams['phi'].astype('complex128')
         iota, psi, tcoal, eta, Phicoal = evParams['iota'].astype('complex128'), evParams['psi'].astype('complex128'), evParams['tcoal'].astype('complex128'), evParams['eta'].astype('complex128'), evParams['Phicoal'].astype('complex128')
         
         fcut = self.fcutNum/(Mc/(eta**(3./5.))) 
@@ -414,15 +414,15 @@ class GWSignal(object):
         if self.detector_shape=='L': 
             #Build gradient
             if useWindow:
-                GWstrainUse = lambda f, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=useWindow)
+                GWstrainUse = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0., useWindow=useWindow)
                 dh = vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))
             else:
                 dh = vmap(jacrev(self.GWstrain, argnums=derivargs, holomorphic=True))
             
-            FisherDerivs = np.asarray(dh(fgrids.T, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal))
+            FisherDerivs = np.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal))
             
             tmpsplit1, tmpsplit2, _ = np.vsplit(FisherDerivs, np.array([1, nParams-1]))
-            logdLderiv = -onp.asarray(self.GWstrain(fgrids, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
+            logdLderiv = -onp.asarray(self.GWstrain(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
             FisherDerivs = np.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2))
             
             FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
@@ -439,14 +439,14 @@ class GWSignal(object):
             Fisher = onp.zeros((nParams,nParams,len(Mc)))
             for i in range(3):
                 # Change rot
-                GWstrainRot = lambda f, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=i*60., useWindow=useWindow)
+                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=i*60., useWindow=useWindow)
                 # Build gradient
                 dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
             
-                FisherDerivs = onp.asarray(dh(fgrids.T, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal))
+                FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal))
                 
                 tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-1]))
-                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, logdL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
+                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
                 FisherDerivs = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2))
                 
                 FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
@@ -467,60 +467,16 @@ class GWSignal(object):
             #print(FisherDerivst)
         return Fisher
     
-    def CovMatr(self, evParams, ParMarg= None, FisherM=None, res=1000, 
-                invMethod='inv', condNumbMax=1.0e15, return_inv_err=False, 
-                return_dL_derivs = True):
-        
-        # ParMarg has to be a list containing the parameters to marginalise over, eg ['psi', 'tcoal', 'Phicoal']
+    
+    
 
-        ParNums = {'Mc':0, 'logdL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'eta':7, 'Phicoal':8}
-        if 'NewtInspiral' in type(self.wf_model).__name__:
-            # In the Newtonian case eta is not included in the Fisher, since it does not enter the signal
-            ParNums['Phicoal']=7
-            ParNums.pop('eta', None)
-        if ParMarg is not None:
-            IdxMarg = onp.sort(onp.array([ParNums[par] for par in ParMarg]))
-          
-            # Given that we deleted some rows and columns, the meaning of the numbers of the remaining ones changes
-            OrKeys = [key for key in ParNums.keys()]
-            for i,key in enumerate(OrKeys):
-                if key in ParMarg:
-                    for tmp in OrKeys[i::1]:
-                        ParNums[tmp] -= 1
-                        ParNums.pop(key, None)
-        
-        if FisherM is None:
-            FisherM = self.FisherMatr(evParams, res=res)
-        evals, evecs, condNumber = fisherTools.CheckFisher(FisherM, condNumbMax=condNumbMax)
-        
-        eps= None
-        if condNumber>condNumbMax:
-            print('Matrix not inverted.')
-            CovMatr = np.full(FisherM.shape, np.nan)
-        else: 
-            CovMatr = fisherTools.inverse_vect(FisherM, invMethod=invMethod)
-            if return_inv_err:
-                eps = [ onp.linalg.norm(CovMatr[:, :, i]@FisherM[:, :, i]-onp.identity(CovMatr.shape[0]), ord=onp.inf) for i in range(FisherM.shape[-1])]
-                print('Inversion error: %s ' %str(eps))
-            if ParMarg is not None:
-                CovMatr = onp.delete(CovMatr, IdxMarg, 0)
-                CovMatr = onp.delete(CovMatr, IdxMarg, 1)
-            
-        
-        if return_dL_derivs:
-            print('Switching from derivatives wrt logdL to derivatives wrt dL...')
-            CovMatr = fisherTools.log_dL_to_dL_derivative_cov(CovMatr, ParNums, evParams)
-             #print('Inversion error: %s ' %str(eps))
-        
-        return CovMatr, ParNums, eps
-        
         
 
     def SNRFastInsp(self, evParams, checkInterp=False):
         # This module allows to compute the inspiral SNR taking into account Earth rotation, without the need 
         # of performing an integral for each event
         
-        Mc, logdL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['logdL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta'] 
+        Mc, dL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['dL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta'] 
         
         ras, decs = self._ra_dec_from_th_phi(theta, phi)
         
@@ -531,7 +487,7 @@ class GWSignal(object):
             SNR = 0
             
         # Factor in front of the integral in the inspiral only case
-        fac = np.sqrt(5./6.)/np.pi**(2./3.)*(glob.GMsun_over_c3*Mc)**(5./6.)*glob.clightGpc*np.exp(-logdL)
+        fac = np.sqrt(5./6.)/np.pi**(2./3.)*(glob.GMsun_over_c3*Mc)**(5./6.)*glob.clightGpc/dL#*np.exp(-logdL)
         
         fcut = self.fcutNum/(Mc/(eta**(3./5.)))
         mask = self.strainFreq >= self.fmin
