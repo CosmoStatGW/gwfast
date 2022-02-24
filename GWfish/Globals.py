@@ -12,6 +12,7 @@ Created on Tue Feb  8 17:12:07 2022
 
 
 import os
+import numpy as np
 
 dirName  = os.path.dirname( os.path.dirname(os.path.abspath(__file__)))
 
@@ -35,7 +36,7 @@ clight = 2.99792458*(10**5) #km/s
 clightGpc = clight/3.0856778570831e+22
 
 
-
+f_isco=1/(np.sqrt(6)*6*2*np.pi*GMsun_over_c3)
 
 ##############################################################################
 # POSITIONS OF EXIXTING DETECTORS
@@ -104,8 +105,7 @@ detectors = { 'L1': { 'lat':30.563,
 # O3a duty cycles: https://www.gw-openscience.org/detector_status/O3a/
 # O2: https://www.gw-openscience.org/summary_pages/detector_status/O2/
 # O2 Virgo : https://www.virgo-gw.eu/O2.html
-<<<<<<< Updated upstream
-=======
+
 
 
 
@@ -210,4 +210,4 @@ def get_filename(tec):
     else: raise ValueError#(f'Specified PSD "{tec}" not known, choose from {tecs}.')
 
     return filename, asd
->>>>>>> Stashed changes
+
