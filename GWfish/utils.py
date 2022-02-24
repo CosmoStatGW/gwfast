@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  8 16:58:25 2022
-
-@author: Michi
-"""
 
 import numpy as np
-
-
-
+from jax.config import config
+config.update("jax_enable_x64", True)
+import jax.numpy as jnp
 
 ##############################################################################
 # ANGLES
@@ -104,6 +99,34 @@ def phi_to_ra_degminsec(phi):
     ra = np.rad2deg(phi)
     return deg_min_sec_string(*rad_to_deg_min_sec(ra)) #hr_min_sec_string(*rad_to_hr_min_sec(ra))
 
+def Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta):
+    # Returns the dimensionless tidal deformability parameters Lambda_tilde and delta_Lambda as defined in PhysRevD.89.103012 eq. (5) and (6), as a function of the dimensionless tidal deformabilities of the two objects and the symmetric mass ratio
+    eta2 = eta*eta
+    # This is needed to stabilize JAX derivatives
+    Seta = jnp.sqrt(jnp.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+        
+    Lamt = (8./13.)*((1. + 7.*eta - 31.*eta2)*(Lambda1 + Lambda2) + Seta*(1. + 9.*eta - 11.*eta2)*(Lambda1 - Lambda2))
+    
+    delLam = 0.5*(Seta*(1. - 13272./1319.*eta + 8944./1319.*eta2)*(Lambda1 + Lambda2) + (1. - 15910./1319.*eta + 32850./1319.*eta2 + 3380./1319.*eta2*eta)*(Lambda1 - Lambda2))
+    
+    return Lamt, delLam
+    
+def Lam12_from_Lamt_delLam(Lamt, delLam, eta):
+        # inversion of Wade et al, PhysRevD.89.103012, eq. (5) and (6)
+        eta2 = eta*eta
+        Seta = jnp.sqrt(jnp.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+        
+        mLp=(8./13.)*(1.+ 7.*eta-31.*eta2)
+        mLm=(8./13.)*Seta*(1.+ 9.*eta-11.*eta2)
+        mdp=Seta*(1.-(13272./1319.)*eta+(8944./1319.)*eta2)*0.5
+        mdm=(1.-(15910./1319.)*eta+(32850./1319.)*eta2+(3380./1319.)*(eta2*eta))*0.5
+
+        det=(306656./1319.)*(eta**5)-(5936./1319.)*(eta**4)
+
+        Lambda1 = ((mdp-mdm)*Lamt+(mLm-mLp)*delLam)/det
+        Lambda2 = ((-mdm-mdp)*Lamt+(mLm+mLp)*delLam)/det
+        
+        return Lambda1, Lambda2
 
 ##############################################################################
 # TIMES
@@ -123,6 +146,23 @@ def check_evparams(evParams):
                 evParams['logdL'] = np.log(evParams['dL'])
             except KeyError:
                 raise ValueError('One among dL and logdL has to be provided.')
+        try:
+            evParams['tcoal']
+        except KeyError:
+            try:
+                # In the code we use Greenwich Mean Sideral Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
+                evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
+            except KeyError:
+                raise ValueError('One among tGPS and tcoal has to be provided.')
+        try:
+            evParams['chi1z']
+        except KeyError:
+            try:
+                evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
+                evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
+            except KeyError:
+                raise ValueError('Two among chi1z, chi2z and chiS and chiA have to be provided.')
+        
         #try:
         #    evParams['cosiota']
         #except KeyError:
@@ -133,12 +173,12 @@ def check_evparams(evParams):
         
         
 def GPSt_to_LMST(t_GPS, lat, long):
-  #Returns the Local Mean Sideral Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
+  # Returns the Local Mean Sideral Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
   from astropy.coordinates import EarthLocation
   import astropy.time as aspyt
   import astropy.units as u
   loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
   t = aspyt.Time(t_GPS, format='gps', location=(loc))
   LMST = t.sidereal_time('mean').value
-  return np.array(LMST/24.)
+  return jnp.array(LMST/24.)
 

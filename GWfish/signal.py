@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  8 18:23:17 2022
-
-@author: Michi
-"""
-
 
 #Enable 64bit on JAX, fundamental
 from jax.config import config
@@ -93,7 +87,6 @@ class GWSignal(object):
         mask = self.strainFreq >= fmin
         self.strainInteg = igt.cumtrapz(self.strainFreq[mask]**(-7./3.)/S[mask], self.strainFreq[mask], initial = 0)
         
-        self.fcutNum = wf_model.fcutNum
         self.useEarthMotion = useEarthMotion
         self.fmin = fmin #Hz
         self.fmax = fmax #Hz or None
@@ -128,7 +121,8 @@ class GWSignal(object):
         
         for i,Mc in enumerate(Mcgrid):
             for j,eta in enumerate(etagrid):
-                fcut = self.fcutNum/(Mc/(eta**(3./5.)))
+                tmpev = {'Mc':np.array([Mc, ]), 'eta':np.array([eta])}
+                fcut = self.wf_model.fcut(**tmpev)
                 mask = (self.strainFreq >= self.fmin) & (self.strainFreq <= fcut)
                 #for k,tc in enumerate(tcgrid):
                 fgrids = np.ones((res, len(self.strainFreq[mask])))*self.strainFreq[mask]
@@ -181,7 +175,7 @@ class GWSignal(object):
                     if self.verbose:
                         print('Attributes of pre-computed integrals: ')
                         print([(k, inp.attrs[k]) for k in inp.attrs.keys()])
-                        #print(inp.attrs)
+                        
             else:
                 print('Tabulating integrals...')
                 Igrid, Mcs, etas, tcs = self._tabulateIntegrals()
@@ -243,9 +237,9 @@ class GWSignal(object):
         
         phiD = 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)
         
-        ddot_phiD = ((2.*np.pi)**3)*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)/((3600.*24)**2.)
+        #ddot_phiD = ((2.*np.pi)**3)*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)/((3600.*24)**2.) # This contribution to the amplitude is negligible
         
-        return phiD, ddot_phiD
+        return phiD#, ddot_phiD
     
     def _phiPhase(self, theta, phi, t, iota, psi, Fp=None,Fc=None):
         #The polarization phase contribution (the change in F+ and Fx with time influences also the phase)
@@ -272,95 +266,88 @@ class GWSignal(object):
         
         return phiL
     
-    
-        
-    
-    
-    def GWAmplitudes(self, evParams, f, ddot_phiDoppler=None, rot=0.):
+    def GWAmplitudes(self, evParams, f, rot=0.):
         # evParams are all the parameters characterizing the event(s) under exam. It has to be a dictionary containing the entries: 
-        # Mc -> chirp mass (Msun), logdL -> log of luminosity distance (Gpc), theta & phi -> sky position (rad), iota -> inclination angle of orbital angular momentum to l.o.s toward the detector,
-        # psi -> polarisation angle, tcoal -> time of coalescence (days), eta -> symmetric mass ratio, Phicoal -> GW frequency at coalescence.
+        # Mc -> chirp mass (Msun), dL -> luminosity distance (Gpc), theta & phi -> sky position (rad), iota -> inclination angle of orbital angular momentum to l.o.s toward the detector,
+        # psi -> polarisation angle, tcoal -> time of coalescence as GMST (fraction of days), eta -> symmetric mass ratio, Phicoal -> GW frequency at coalescence.
+        # chi1z, chi2z -> dimensionless spin components aligned to orbital angular momentum [-1;1], Lambda1,2 -> tidal parameters of the objects,
         # f is the frequency (Hz)
-        
-        '''
-        As can be seen in M. Maggiore Vol. 1, problem 4.1, the amplitude of the signal common to both the + and x 
-        polarisations (so omitting the factor depending on cosiota) is given by 
-        
-        Agw(f) = 0.5*A(t*)*sqrt(2pi/ddot(Phi(t*)))
-        
-        In the Newtonian and restricted PN approximation, the first term is given by
-        
-        0.5*A(f(t*)) = (2c/dL) (G Mc/ c^3)^(5/3) (pi f)^(2/3) 
-        
-        '''
         
         #self._check_evparams(evParams)
         
-        Mc, dL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['dL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta'] 
-        def A0(dL, Mc, f):
-            # First common term of the amplitude
-            #return 2.*(clightGpc/dL)*((GMsun_over_c3*Mc)**(5./3.))*((np.pi*f)**(2./3.))
-            return 2.*glob.clightGpc/dL*((glob.GMsun_over_c3*Mc)**(5./3.))*((np.pi*f)**(2./3.))
+        Mc, dL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['dL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta']
         
         if self.useEarthMotion:
-            # Earth motion gives a relevant contribution only for BNSs, for which Newtonian or restricted PN approximation works
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
-            overallAmpl = A0(dL, Mc, f)
-            ddot_Phi = self.wf_model.ddot_Phi(f, **evParams)
-            if ddot_phiDoppler is None:
-                _, ddot_phiDoppler = self._phiDoppler(theta, phi, t, f)
-            Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
-            Ap = overallAmpl*np.sqrt(2.*np.pi/abs(ddot_Phi + ddot_phiDoppler))*Fp*0.5*(1.+(np.cos(iota))**2)
-            Ac = overallAmpl*np.sqrt(2.*np.pi/abs(ddot_Phi + ddot_phiDoppler))*Fc*np.cos(iota)
-            
+        
         else:
-            t = tcoal - self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
-            overallAmpl = A0(dL, Mc, f)
-            mod_Ampl = self.wf_model.ampl_mod_fac(f, **evParams)
-            ddot_Phi = self.wf_model.ddot_Phi(f, **evParams)
-            Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
-            Ap = overallAmpl*mod_Ampl*np.sqrt(2.*np.pi/ddot_Phi)*Fp*0.5*(1.+(np.cos(iota))**2)
-            Ac = overallAmpl*mod_Ampl*np.sqrt(2.*np.pi/ddot_Phi)*Fc*np.cos(iota)
+            t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
+        
+        wfAp, wfAc = self.wf_model.Ampl(f, **evParams)
+        Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
+        Ap = wfAp*Fp*0.5*(1.+(np.cos(iota))**2)
+        Ac = wfAc*Fc*np.cos(iota)
         
         return Ap, Ac
     
     def GWPhase(self, evParams, f):
-        # Phase of the GW signal. This is actually Psi+, but Psix = Psi+ + pi/2
+        # Phase of the GW signal
         Mc, eta, tcoal, Phicoal = evParams['Mc'], evParams['eta'], evParams['tcoal'], evParams['Phicoal']
-        PhiGw = self.wf_model.Phi(f, **evParams)
-        return 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGw
+        PhiGwp, PhiGwc = self.wf_model.Phi(f, **evParams)
+        return 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGwp, 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGwc
         
 
-    def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=0.):
+    def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0.):
 
         # Full GW strain expression (complex)
         # Here we have the decompressed parameters and we put them back in a dictionary just to have an easier
         # implementation of the JAX module for derivatives
-        evParams = {'Mc':Mc, 'dL':dL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':eta, 'Phicoal':Phicoal}
+        chi1z = chiS + chiA
+        chi2z = chiS - chiA
+        evParams = {'Mc':Mc, 'dL':dL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':eta, 'Phicoal':Phicoal, 'chi1z':chi1z, 'chi2z':chi2z}
+        
+        if self.wf_model.is_tidal:
+            Lambda1, Lambda2 = utils.Lam12_from_Lamt_delLam(LambdaTilde, deltaLambda, eta)
+            
+            evParams['Lambda1'] = Lambda1
+            evParams['Lambda2'] = Lambda2
+            
         if self.useEarthMotion:
             # Compute Doppler contribution
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
-            phiD, ddot_phiD = self._phiDoppler(theta, phi, t, f)
+            phiD = self._phiDoppler(theta, phi, t, f)
+            #phiP is necessary if we write the signal as A*exp(i Psi) with A = sqrt(Ap^2 + Ac^2)
             phiP = self._phiPhase(theta, phi, t, iota, psi)
         else:
-            phiD, ddot_phiD, phiP = Mc*0., Mc*0., Mc*0.
+            phiD, phiP = Mc*0., Mc*0.
             t = tcoal
         phiL = self._phiLoc(theta, phi, t, f)
-        Ap, Ac = self.GWAmplitudes(evParams, f, ddot_phiDoppler=ddot_phiD, rot=rot)
-        Psi = self.GWPhase(evParams, f) + phiD + phiL #+ phiP
-            
-        return (Ap + Ac*1j)*np.exp(Psi*1j)
-        #return Ampl*np.exp(Psi*1j)
+        Ap, Ac = self.GWAmplitudes(evParams, f, rot=rot)
+        Psip, Psic = self.GWPhase(evParams, f)
+        Psip = Psip + phiD + phiL
+        Psic = Psic + phiD + phiL
+        
+        return Ap*np.exp(Psip*1j) + Ac*np.exp(Psic*1j)
+        #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp(Psi*1j)
     
     def SNRInteg(self, evParams, res=1000):
         # SNR calculation performing the frequency integral for each signal
-        # This is computationally expensive, but might be needed for complex waveform models
+        # This is computationally more expensive, but needed for complex waveform models
+        utils.check_evparams(evParams)
         if not np.isscalar(evParams['Mc']):
             SNR = np.zeros(len(np.asarray(evParams['Mc'])))
         else:
             SNR = 0
+        if self.wf_model.is_tidal:
+            try:
+                evParams['Lambda1']
+            except KeyError:
+                try:
+                    evParams['Lambda1'], evParams['Lambda2'] = utils.Lam12_from_Lamt_delLam(evParams['LambdaTilde'], evParams['deltaLambda'], eta)
+                except KeyError:
+                    raise ValueError('Two among Lambda1, Lambda2 and LambdaTilde and deltaLambda have to be provided.')
         
-        fcut = self.fcutNum/(evParams['Mc']/(evParams['eta']**(3./5.)))
+        fcut = self.wf_model.fcut(**evParams)
         
         if self.fmax is not None:
             fcut = np.where(fcut > self.fmax, self.fmax, fcut)
@@ -370,7 +357,7 @@ class GWSignal(object):
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
         
         if self.detector_shape=='L':    
-            Aps, Acs = self.GWAmplitudes(evParams, fgrids, ddot_phiDoppler=None)
+            Aps, Acs = self.GWAmplitudes(evParams, fgrids)
             Atot = Aps*Aps + Acs*Acs
             SNR = np.sqrt(np.trapz(Atot/strainGrids, fgrids, axis=0))
             if self.DutyFactor is not None:
@@ -378,7 +365,7 @@ class GWSignal(object):
                 SNR = SNR*excl
         elif self.detector_shape=='T':
             for i in range(3):
-                Aps, Acs = self.GWAmplitudes(evParams, fgrids, ddot_phiDoppler=None, rot=i*60.)
+                Aps, Acs = self.GWAmplitudes(evParams, fgrids, rot=i*60.)
                 Atot = Aps*Aps + Acs*Acs
                 tmpSNRsq = np.trapz(Atot/strainGrids, fgrids, axis=0)
                 if self.DutyFactor is not None:
@@ -398,31 +385,52 @@ class GWSignal(object):
   
         Mc, dL, theta, phi = evParams['Mc'].astype('complex128'), evParams['dL'].astype('complex128'), evParams['theta'].astype('complex128'), evParams['phi'].astype('complex128')
         iota, psi, tcoal, eta, Phicoal = evParams['iota'].astype('complex128'), evParams['psi'].astype('complex128'), evParams['tcoal'].astype('complex128'), evParams['eta'].astype('complex128'), evParams['Phicoal'].astype('complex128')
+        chi1z, chi2z = evParams['chi1z'].astype('complex128'), evParams['chi2z'].astype('complex128')
         
-        fcut = self.fcutNum/(Mc/(eta**(3./5.))) 
+        chiS, chiA = 0.5*(chi1z + chi2z), 0.5*(chi1z - chi2z)
+        
+        if self.wf_model.is_tidal:
+            try:
+                Lambda1, Lambda2 = evParams['Lambda1'].astype('complex128'), evParams['Lambda2'].astype('complex128')
+            except KeyError:
+                try:
+                    Lambda1, Lambda2  = utils.Lam12_from_Lamt_delLam(evParams['LambdaTilde'].astype('complex128'), evParams['deltaLambda'].astype('complex128'), eta)
+                except KeyError:
+                    raise ValueError('Two among Lambda1, Lambda2 and LambdaTilde and deltaLambda have to be provided.')
+            LambdaTilde, deltaLambda = utils.Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta)
+        else:
+            Lambda1, Lambda2, LambdaTilde, deltaLambda = np.zeros(Mc.shape), np.zeros(Mc.shape), np.zeros(Mc.shape), np.zeros(Mc.shape)
+            
+        fcut = self.wf_model.fcut(**evParams)
+        
         if self.fmax is not None:
             fcut = np.where(fcut > self.fmax, self.fmax, fcut)
         fminarr = np.full(fcut.shape, self.fmin)
         fgrids = np.geomspace(fminarr,fcut,num=int(res))
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
-        if 'NewtInspiral' in type(self.wf_model).__name__:
-            print('WARNING: In the Newtonian inspiral case the mass ratio does not enter the waveform, and the corresponding Fisher matrix element vanish, we then discard it.\n')
+        if self.wf_model.is_newtonian:
+            print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
             #derivargs = (1,2,3,4,5,6,7,9)
-            derivargs = (1,3,4,5,6,7,9)
+            derivargs = (1,3,4,5,6,7)
             nParams = 8
+        elif self.wf_model.is_tidal:
+            derivargs = (1,3,4,5,6,7,8,10,11,12,13)
+            nParams = 13
         else:
-            derivargs = (1,3,4,5,6,7,8,9)
-            nParams = 9
+            derivargs = (1,3,4,5,6,7,8,10,11)
+            nParams = 11
         
         if self.detector_shape=='L': 
             #Build gradient
             dh = vmap(jacrev(self.GWstrain, argnums=derivargs, holomorphic=True))
             
-            FisherDerivs = np.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal))
-            
-            tmpsplit1, tmpsplit2, _ = np.vsplit(FisherDerivs, np.array([1, nParams-1]))
-            logdLderiv = -onp.asarray(self.GWstrain(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
-            FisherDerivs = np.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2))
+            FisherDerivs = np.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+
+            # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
+            tmpsplit1, tmpsplit2, _ = np.vsplit(FisherDerivs, np.array([1, nParams-2]))
+            logdLderiv = -onp.asarray(self.GWstrain(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
+            Phicoalderiv = logdLderiv*1j
+            FisherDerivs = np.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
             
             FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
     
@@ -439,16 +447,18 @@ class GWSignal(object):
             for i in range(3):
                 # Change rot
 
-                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, rot=i*60., )
-
+                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60.)
+                
                 # Build gradient
                 dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
             
-                FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal))
-                
-                tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-1]))
-                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal)).T
-                FisherDerivs = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2))
+                FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+
+                # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
+                tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-2]))
+                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
+                Phicoalderiv = logdLderiv*1j
+                FisherDerivs = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
                 
                 FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
                 
@@ -486,7 +496,7 @@ class GWSignal(object):
         # Factor in front of the integral in the inspiral only case
         fac = np.sqrt(5./6.)/np.pi**(2./3.)*(glob.GMsun_over_c3*Mc)**(5./6.)*glob.clightGpc/dL#*np.exp(-logdL)
         
-        fcut = self.fcutNum/(Mc/(eta**(3./5.)))
+        fcut = self.wf_model.fcut(**evParams)
         if self.fmax is not None:
             fcut = np.where(fcut > self.fmax, self.fmax, fcut)
         mask = self.strainFreq >= self.fmin
@@ -524,27 +534,27 @@ class GWSignal(object):
         
         def FpFcsqInt(C2s, S2s, C1s, S1s, C0s, Igs, iota):
             Fp4 = 0.5*(C2s[0]**2 - S2s[0]**2)*Igs[3] +  C2s[0]*S2s[0]*Igs[7]   
-            #print('Cp4Om = '+str(0.5*(C2s[0]**2 - S2s[0]**2))+' Sp4Om = '+str(C2s[0]*S2s[0]))
+            
             Fp3 = (C2s[0]*C1s[0] - S2s[0]*S1s[0])*Igs[2] + (C2s[0]*S1s[0] + S2s[0]*C1s[0])*Igs[6]
-            #print('Cp3Om = '+str(C2s[0]*C1s[0] - S2s[0]*S1s[0])+' Sp3Om = '+str(C2s[0]*S1s[0] + S2s[0]*C1s[0]))
+            
             Fp2 = (0.5*(C1s[0]**2 - S1s[0]**2) + 2.*C2s[0]*C0s[0])*Igs[1] + (2.*C0s[0]*S2s[0] + C1s[0]*S1s[0])*Igs[5]
-            #print('Cp2Om = '+str(0.5*(C1s[0]**2 - S1s[0]**2) + 2.*C2s[0]*C0s[0])+' Sp2Om = '+str(2.*C0s[0]*S2s[0] + C1s[0]*S1s[0]))
+            
             Fp1 = (2.*C0s[0]*C1s[0] + C1s[0]*C2s[0] + S2s[0]*S1s[0])*Igs[0] + (2.*C0s[0]*S1s[0] + C1s[0]*S2s[0] - S1s[0]*C2s[0])*Igs[4]
-            #print('Cp1Om = '+str(2.*C0s[0]*C1s[0] + C1s[0]*C2s[0] + S2s[0]*S1s[0])+' Sp1Om = '+str(2.*C0s[0]*S1s[0] + C1s[0]*S2s[0] - S1s[0]*C2s[0]))
+            
             Fp0 = (C0s[0]**2 + 0.5*(C1s[0]**2 + C2s[0]**2 + S1s[0]**2 + S2s[0]**2))*Igs[8]
-            #print('Cp0 = '+str(C0s[0]**2 + 0.5*(C1s[0]**2 + C2s[0]**2 + S1s[0]**2 + S2s[0]**2)))
+            
             FpsqInt = Fp4 + Fp3 + Fp2 + Fp1 + Fp0
             
             Fc4 = 0.5*(C2s[1]**2 - S2s[1]**2)*Igs[3] +  C2s[1]*S2s[1]*Igs[7]   
-            #print('Cc4Om = '+str(0.5*(C2s[1]**2 - S2s[1]**2))+' Sc4Om = '+str(C2s[1]*S2s[1]))
+            
             Fc3 = (C2s[1]*C1s[1] - S2s[1]*S1s[1])*Igs[2] + (C2s[1]*S1s[1] + S2s[1]*C1s[1])*Igs[6]
-            #print('Cc3Om = '+str(C2s[1]*C1s[1] - S2s[1]*S1s[1])+' Sc3Om = '+str(C2s[1]*S1s[1] + S2s[1]*C1s[1]))
+            
             Fc2 = (0.5*(C1s[1]**2 - S1s[1]**2) + 2.*C2s[1]*C0s[1])*Igs[1] + (2.*C0s[1]*S2s[1] + C1s[1]*S1s[1])*Igs[5]
-            #print('Cc2Om = '+str(0.5*(C1s[1]**2 - S1s[1]**2) + 2.*C2s[1]*C0s[1])+' Sc2Om = '+str(2.*C0s[1]*S2s[1] + C1s[1]*S1s[1]))
+            
             Fc1 = (2.*C0s[1]*C1s[1] + C1s[1]*C2s[1] + S2s[1]*S1s[1])*Igs[0] + (2.*C0s[1]*S1s[1] + C1s[1]*S2s[1] - S1s[1]*C2s[1])*Igs[4]
-            #print('Cc1Om = '+str(2.*C0s[1]*C1s[1] + C1s[1]*C2s[1] + S2s[1]*S1s[1])+' Sc1Om = '+str(2.*C0s[1]*S1s[1] + C1s[1]*S2s[1] - S1s[1]*C2s[1]))
+            
             Fc0 = (C0s[1]**2 + 0.5*(C1s[1]**2 + C2s[1]**2 + S1s[1]**2 + S2s[1]**2))*Igs[8]
-            #print('Cc0 = '+str(C0s[1]**2 + 0.5*(C1s[1]**2 + C2s[1]**2 + S1s[1]**2 + S2s[1]**2)))
+            
             FcsqInt = Fc4 + Fc3 + Fc2 + Fc1 + Fc0
             
             return FpsqInt*(0.5*(1.+(np.cos(iota))**2))**2, FcsqInt*(np.cos(iota))**2

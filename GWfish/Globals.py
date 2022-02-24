@@ -17,13 +17,12 @@ dirName  = os.path.dirname( os.path.dirname(os.path.abspath(__file__)))
 
 detPath=os.path.join(dirName, 'psds')
 
-
+WFfilesPath = os.path.join(dirName, 'WFfiles')
 
 ##############################################################################
 # PHYSICAL CONSTANTS
 ##############################################################################
-
-
+# See http://asa.hmnao.com/static/files/2021/Astronomical_Constants_2021.pdf
 
 GMsun_over_c3 = 4.925491025543575903411922162094833998e-6 # seconds
 GMsun_over_c2 = 1.476625061404649406193430731479084713e3 # meters
@@ -45,20 +44,20 @@ clightGpc = clight/3.0856778570831e+22
 
 detectors = { 'L1': { 'lat':30.563,
                      'long':-90.774,
-                     'xax':198.,
+                     'xax':243.,
                      'shape':'L',
                      
                     },
              
              'H1': { 'lat':46.455,
                      'long':-119.408,
-                     'xax':126.,
+                     'xax':171.,
                      'shape':'L',
                     },
              
              'Virgo': { 'lat':43.631,
                      'long':10.504,
-                     'xax':71.,
+                     'xax':116.,
                      'shape':'L',
                     }
 

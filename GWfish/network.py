@@ -23,6 +23,7 @@ class DetNet(object):
     
     def SNR(self, evParams, res=1000):
         self.snrs = {}
+        utils.check_evparams(evParams)
         for d in self.signals.keys():
             self.snrs[d] =  self.signals[d].SNRInteg(evParams, res=res)**2 
         return onp.sqrt(sum(self.snrs.values()))
@@ -30,6 +31,7 @@ class DetNet(object):
     
     def FisherMatr(self, evParams, res=1000):
         self.Fishers = {}
+        utils.check_evparams(evParams)
         for d in self.signals.keys():
             print('\nComputing Fisher for %s...' %d)
             self.Fishers[d] =  self.signals[d].FisherMatr(evParams, res=res) 

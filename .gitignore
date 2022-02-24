@@ -1,2 +1,6 @@
 
 .DS_Store
+GWfish/__pycache__
+notebooks/.ipynb_checkpoints
+notebooks/Testing_and_Implementation.ipynb
+
