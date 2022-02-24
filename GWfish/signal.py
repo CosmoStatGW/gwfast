@@ -378,7 +378,7 @@ class GWSignal(object):
         return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
     
     
-    def FisherMatr(self, evParams, res=1000):
+    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='lin'):
 
         
         utils.check_evparams(evParams)
@@ -405,11 +405,25 @@ class GWSignal(object):
         
         if self.fmax is not None:
             fcut = np.where(fcut > self.fmax, self.fmax, fcut)
+        
         fminarr = np.full(fcut.shape, self.fmin)
-        fgrids = np.geomspace(fminarr,fcut,num=int(res))
+        if res is None and df is not None:
+            res = np.floor( np.real((1+(fcut-fminarr)/df)))
+        elif res is None and df is None:
+            raise ValueError('Provide either resolution in frequency or step size.')
+        if spacing=='lin':
+            fgrids = np.linspace(fminarr, fcut, num=int(res))
+        elif spacing=='geom':
+            fgrids = np.geomspace(fminarr, fcut, num=int(res))
+        #fgrids = np.arange(fminarr, np.real(fcut), df, ).astype('complex128') #dtype=fcut.dtype)
+        #print('frequency grid: fmin=%s, fmax= %s, step=%s '%(fminarr,fcut, df))
+        #
+        #print(fgrids)
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
+
         if self.wf_model.is_newtonian:
             print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
+
             #derivargs = (1,2,3,4,5,6,7,9)
             derivargs = (1,3,4,5,6,7)
             nParams = 8

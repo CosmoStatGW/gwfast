@@ -22,7 +22,6 @@ import GWfish.utils as utils
 
 
 def CovMatr(FisherM, evParams, 
-            res=1000, 
                 invMethod='inv', condNumbMax=1.0e15, 
                 return_inv_err=False, 
                 return_dL_derivs = True, 
@@ -46,7 +45,7 @@ def CovMatr(FisherM, evParams,
             FisherM_or = copy.deepcopy(FisherM)
             #ws_i = np.array([np.diag(np.cos(ev['iota'])) for ev in evParams])
             ws_i= np.array([np.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
-            ws_i = ws_i.at[:, 4,4].set(1/np.cos(evParams['iota']))
+            ws_i = ws_i.at[:, 4,4].set(-1/np.sin(evParams['iota']))
             FisherM = (ws_i@((FisherM.T@ws_i).T).T).T
         
         
@@ -85,10 +84,10 @@ def CovMatr(FisherM, evParams,
         
         
         
-        eps= None
+        eps=None
+        #maxnorm=None
         if return_inv_err:
-                eps = [ onp.linalg.norm(CovMatr[:, :, i]@FisherM_or[:, :, i]-onp.identity(CovMatr.shape[0]), ord=onp.inf) for i in range(FisherM.shape[-1])]
-                print('Inversion error: %s ' %str(eps))
+               eps =  compute_inversion_error(FisherM_or, CovMatr)
 
             
         if return_dL_derivs:
@@ -101,9 +100,18 @@ def CovMatr(FisherM, evParams,
         #    CovMatr = fisherTools.log_dL_to_dL_derivative_cov(CovMatr, ParNums, evParams)
              #print('Inversion error: %s ' %str(eps))
         
-        return CovMatr,  eps
+        return CovMatr, eps, 
 
 
+
+def compute_inversion_error(Fisher, Cov):
+    #diff = np.array([Cov[:, :, i]@Fisher[:, :, i]-onp.identity(Cov.shape[0]) for i in range(Fisher.shape[-1])])
+    #eps = [ onp.linalg.norm(mm, ord=onp.inf) for mm in diff]
+    #maxnorm = [ np.max(mm) for mm in diff]
+    eps = [ onp.linalg.norm(Cov[:, :, i]@Fisher[:, :, i]-onp.identity(Cov.shape[0]), ord=onp.inf) for i in range(Fisher.shape[-1])]
+    print('Inversion error (inf norm): %s ' %str(eps))
+    #print('Inversion error (max): %s ' %str(maxnorm))
+    return eps#, maxnorm
 
 
 def inverse_vect(A, invMethod):
@@ -125,6 +133,24 @@ def inverse_vect(A, invMethod):
                     Ainv=onp.linalg.solve(A[:, :, k], onp.identity(A.shape[0]))
                     allInvs[:, :, k] = Ainv
                 return allInvs  
+            elif invMethod=='lu':
+                allInvs=onp.zeros(A.shape)
+                from scipy.linalg import lu
+                for k in range(A.shape[-1]):
+                    p,l,u = lu(A[:, :, k], permute_l = False)
+                    l = np.dot(p,l) 
+                    l_inv = np.linalg.inv(l)
+                    u_inv = np.linalg.inv(u)
+                    Ainv = np.dot(u_inv,l_inv)
+                    allInvs[:, :, k] = Ainv
+                return allInvs
+            elif invMethod=='cho':
+                allInvs=onp.zeros(A.shape)
+                for k in range(A.shape[-1]):
+                    c = np.linalg.inv(np.linalg.cholesky(A[:, :, k]))
+                    Ainv = np.dot(c.T,c)
+                    allInvs[:, :, k] = Ainv
+                return allInvs
             
             
 def CheckFisher(FisherM, condNumbMax=1.0e15):
@@ -150,10 +176,10 @@ def CheckFisher(FisherM, condNumbMax=1.0e15):
         return evals, evecs, condNumber
 
 
-def perturb_Fisher(totF, myNet, events, eps=1e-10):
+def perturb_Fisher(totF, myNet, events, eps=1e-10, **kwargs):
     
     #_, parnums_ = myNet.signals[list(myNet.signals.keys())[0]].CovMatr(events)
-    Cov_base,  _, _ = myNet.CovMatr(events, FisherM=totF, get_individual=False)
+    Cov_base,  _, _ = myNet.CovMatr(events, FisherM=totF, get_individual=False, **kwargs)
     #print('Forecasted dL error, true Fisher:')
     #print(onp.sqrt(Cov_base[1, 1])*1000)
     
@@ -162,7 +188,7 @@ def perturb_Fisher(totF, myNet, events, eps=1e-10):
     #print(DelOmegaDegSq_base)
 
     totF_random = totF + onp.random.rand(*totF.shape)*eps
-    Cov,  _, _ = myNet.CovMatr(events, FisherM=totF_random, get_individual=False)
+    Cov,  _, _ = myNet.CovMatr(events, FisherM=totF_random, get_individual=False, **kwargs)
     
     #print('Forecasted dL error:')
     #print(onp.sqrt(Cov[1, 1])*1000)
@@ -273,13 +299,16 @@ def log_dL_to_dL_derivative_fish(or_matrix, ParNums, evParams):
 ##############################################################################
 
 
-def compute_localization_region(Cov, parNum, thFid, units='SqDeg'):
+def compute_localization_region(Cov, parNum, thFid, perc_level=90, units='SqDeg'):
 
+    
     DelThSq  = Cov[parNum['theta'], parNum['theta']]
     DelPhiSq  = Cov[parNum['phi'], parNum['phi']]
-
     DelThDelPhi  = Cov[parNum['phi'], parNum['theta']]
-    DelOmegaSr = 2*onp.pi*onp.sqrt(DelThSq*DelPhiSq-DelThDelPhi**2)*onp.abs(onp.sin(thFid))
+    
+    # From Barak, Cutler, PRD 69, 082005 (2004)
+    DelOmegaSr_base = 2*onp.pi*onp.sqrt(DelThSq*DelPhiSq-DelThDelPhi**2)*onp.abs(onp.sin(thFid))
+    DelOmegaSr =  - DelOmegaSr_base*onp.log(1-perc_level/100)
     
     if units=='Sterad':
         return DelOmegaSr

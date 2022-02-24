@@ -29,12 +29,12 @@ class DetNet(object):
         return onp.sqrt(sum(self.snrs.values()))
         
     
-    def FisherMatr(self, evParams, res=1000):
+    def FisherMatr(self, evParams, **kwargs):
         self.Fishers = {}
         utils.check_evparams(evParams)
         for d in self.signals.keys():
             print('\nComputing Fisher for %s...' %d)
-            self.Fishers[d] =  self.signals[d].FisherMatr(evParams, res=res) 
+            self.Fishers[d] =  self.signals[d].FisherMatr(evParams, **kwargs) 
         print('\nComputing total Fisher ...')
         totF = sum(self.Fishers.values())
         _, _, _ = fisherTools.CheckFisher(totF)
@@ -45,20 +45,14 @@ class DetNet(object):
     
     def CovMatr(self, evParams, 
                     FisherM=None, 
-                    res=1000, 
-                    invMethod='inv', 
-                    condNumbMax=1e15, 
                    get_individual = True, 
-                   return_inv_err=False,
-                   return_dL_derivs = True, 
-                   use_sin_iota=False,
-                   use_reweighting=True):
+                    **kwargs):
         
         utils.check_evparams(evParams)
         
         if FisherM is None:
             # Compute total Fisher (which also computes individial Fishers)
-            FisherM = self.FisherMatr(evParams, res=res)
+            FisherM = self.FisherMatr(evParams, **kwargs)
             
         CovMatrices=None
         if get_individual:
@@ -68,36 +62,30 @@ class DetNet(object):
                 if FisherM is None:
                     FisherM_ = None
                 print('\nComputing Covariance for %s...' %d)
-                CovMatrices[d],  _ =  fisherTools.CovMatr(FisherM_, evParams, 
-                                                                #FisherM=FisherM_, 
-                                                                res=res,
-                                                                invMethod=invMethod, 
-                                                                condNumbMax=condNumbMax, 
-                                                                return_dL_derivs = return_dL_derivs, 
-                                                                use_sin_iota=use_sin_iota, 
-                                                                use_reweighting=use_reweighting
-                                                                ) 
+                CovMatrices[d],  _ =  fisherTools.CovMatr(FisherM_, evParams, **kwargs ) 
 
         print('\nComputing total covariance ...')
-        Cov, _ = fisherTools.CovMatr(FisherM, evParams, 
-                                              #FisherM=FisherM, 
-                                              res=res,
-                                              invMethod=invMethod, 
-                                              condNumbMax=condNumbMax, 
-                                              return_dL_derivs = return_dL_derivs, 
-                                              use_sin_iota=use_sin_iota, 
-                                              use_reweighting=use_reweighting
-                                              )
+        Cov, _ = fisherTools.CovMatr(FisherM, evParams, **kwargs )
+        
         print('Done.')
         #print(Cov.shape)
         eps=None
+        try:
+            return_inv_err=kwargs['return_inv_err']
+        except:
+            return_inv_err=False
+        try:
+            return_dL_derivs=kwargs['return_dL_derivs']
+        except:
+            return_dL_derivs=True
+        
         if return_inv_err:
             if return_dL_derivs:
                 print('Converting Fisher to dL to check inversion error...')
                 FisherM_check = fisherTools.log_dL_to_dL_derivative_fish(FisherM, {'logdL':1}, evParams)
             else: FisherM_check = FisherM
             # TODO : vectorize this
-            eps = [ onp.linalg.norm(Cov[:, :, i]@FisherM_check[:, :, i]-onp.identity(Cov.shape[0]), ord=onp.inf) for i in range(FisherM.shape[-1])]
-            print('Inversion error: %s ' %str(eps))
+            eps = fisherTools.compute_inversion_error(FisherM_check, Cov)
+            
         return Cov, eps, CovMatrices
         
