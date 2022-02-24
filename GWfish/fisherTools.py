@@ -41,16 +41,15 @@ def CovMatr(FisherM, evParams,
         #    FisherM = (ws_dL@((FisherM.T@ws_dL).T).T).T
         
         if use_sin_iota:
-            #if FisherM_or is not None:
+            #if FisherM_or is None:
             FisherM_or = copy.deepcopy(FisherM)
             #ws_i = np.array([np.diag(np.cos(ev['iota'])) for ev in evParams])
             ws_i= np.array([np.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
             ws_i = ws_i.at[:, 4,4].set(-1/np.sin(evParams['iota']))
             FisherM = (ws_i@((FisherM.T@ws_i).T).T).T
         
-        
         if use_reweighting=='diag':
-            if FisherM_or is not None:
+            if FisherM_or is None:
                 FisherM_or = copy.deepcopy(FisherM)
             # Divide by max of each row to improve invertibility
             
@@ -58,13 +57,14 @@ def CovMatr(FisherM, evParams,
             ws = np.array([np.diag(1/np.sqrt(w)) for w in ws_]) #np.array([np.diag(1/w) for w in ws_])
             FisherM = (ws@((FisherM.T@ws).T).T).T #(FisherM.T@ws).T
         elif use_reweighting=='max':
-            if FisherM_or is not None:
+            if FisherM_or is None:
                 FisherM_or = copy.deepcopy(FisherM)
             
             ws_ =  np.max(FisherM, axis=(0)).T
             ws = np.array([np.diag(1/w) for w in ws_])
             FisherM = (FisherM.T@ws).T
-        else: FisherM_or=FisherM
+        else: 
+            FisherM_or = FisherM
         
         evals, evecs, condNumber = CheckFisher(FisherM, condNumbMax=condNumbMax)
         
@@ -238,7 +238,8 @@ def fixParams(Matr, ParNums_inp, ParMarg):
     Matr = onp.delete(Matr, IdxMarg, 0)
     Matr = onp.delete(Matr, IdxMarg, 1)
     
-    # Given that we deleted some rows and columns, the meaning of the numbers of the remaining ones changes
+    # Given that we deleted some rows and columns, 
+    # the meaning of the numbers of the remaining ones changes
         
     OrKeys = [key for key in ParNums.keys()]
     for i,key in enumerate(OrKeys):

@@ -210,7 +210,7 @@ class IMRPhenomD(WaveFormModel):
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
          
-        super().__init__('BNS', fcutPar)
+        super().__init__('BBH', fcutPar)
         
         self.QNMgrid_a = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
         self.QNMgrid_fring = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fring.txt'))
