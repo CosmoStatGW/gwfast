@@ -43,7 +43,8 @@ class GWSignal(object):
                 useEarthMotion = False,
                 fmin=5, fmax=None,
                 IntTablePath=None,
-                DutyFactor=None):
+                DutyFactor=None,
+                compute2arms=True):
         
         if (detector_shape!='L') and (detector_shape!='T'):
             raise ValueError('Enter valid detector configuration')
@@ -97,6 +98,7 @@ class GWSignal(object):
             self.angbtwArms = np.pi/3.
         
         self.IntegInterpArr = None
+        self.compute2arms = compute2arms
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
         import scipy.integrate as igt
@@ -364,21 +366,41 @@ class GWSignal(object):
                 excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                 SNR = SNR*excl
         elif self.detector_shape=='T':
-            for i in range(3):
-                Aps, Acs = self.GWAmplitudes(evParams, fgrids, rot=i*60.)
-                Atot = Aps*Aps + Acs*Acs
-                tmpSNRsq = np.trapz(Atot/strainGrids, fgrids, axis=0)
+            if not self.compute2arms:
+                for i in range(3):
+                    Aps, Acs = self.GWAmplitudes(evParams, fgrids, rot=i*60.)
+                    Atot = Aps*Aps + Acs*Acs
+                    tmpSNRsq = np.trapz(Atot/strainGrids, fgrids, axis=0)
+                    if self.DutyFactor is not None:
+                        excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                        tmpSNRsq = tmpSNRsq*excl
+                    SNR = SNR + tmpSNRsq
+                SNR = np.sqrt(SNR)
+            else:
+            # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
+                Aps1, Acs1 = self.GWAmplitudes(evParams, fgrids, rot=0.)
+                Atot1 = Aps1*Aps1 + Acs1*Acs1
+                Aps2, Acs2 = self.GWAmplitudes(evParams, fgrids, rot=60.)
+                Atot2 = Aps2*Aps2 + Acs2*Acs2
+                Aps3, Acs3 = - (Aps1 + Aps2), - (Acs1 + Acs2)
+                Atot3 = Aps3*Aps3 + Acs3*Acs3
+                tmpSNRsq1 = np.trapz(Atot1/strainGrids, fgrids, axis=0)
+                tmpSNRsq2 = np.trapz(Atot2/strainGrids, fgrids, axis=0)
+                tmpSNRsq3 = np.trapz(Atot3/strainGrids, fgrids, axis=0)
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
-                    tmpSNRsq = tmpSNRsq*excl
-                SNR = SNR + tmpSNRsq
-            SNR = np.sqrt(SNR)
-        
+                    tmpSNRsq1 = tmpSNRsq1 * excl
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpSNRsq2 = tmpSNRsq2 * excl
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpSNRsq3 = tmpSNRsq3 * excl
+                
+                SNR = np.sqrt(tmpSNRsq1 + tmpSNRsq2 + tmpSNRsq3)
         
         return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
     
     
-    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='lin'):
+    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom'):
 
         
         utils.check_evparams(evParams)
@@ -458,31 +480,98 @@ class GWSignal(object):
                     Fisher[beta,alpha, :] = Fisher[alpha,beta, :]
         else:
             Fisher = onp.zeros((nParams,nParams,len(Mc)))
-            for i in range(3):
-                # Change rot
+            if not self.compute2arms:
+                for i in range(3):
+                    # Change rot
 
-                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60.)
+                    GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60.)
+                    
+                    # Build gradient
+                    dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
                 
-                # Build gradient
-                dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
+                    FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+
+                    # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
+                    tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-2]))
+                    logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
+                    Phicoalderiv = logdLderiv*1j
+                    FisherDerivs = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
+                    
+                    FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
+                    
+                    tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
+                    # This for is unavoidable i think
+                    for alpha in range(nParams):
+                        for beta in range(alpha,nParams):
+                            tmpElem = FisherIntegrands[alpha,:,beta,:].T
+                            tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
+                            
+                            tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                    Fisher += tmpFisher
+            else:
+            # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
             
+                # Build gradient
+                dh = vmap(jacrev(self.GWstrain, argnums=derivargs, holomorphic=True))
+                
                 FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
 
                 # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
                 tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-2]))
-                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
+                logdLderiv = -onp.asarray(self.GWstrain(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
                 Phicoalderiv = logdLderiv*1j
-                FisherDerivs = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
                 
-                FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
-                
+                FisherDerivs1 = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
+                    
+                FisherIntegrands = (onp.conjugate(FisherDerivs1[:,:,onp.newaxis,:])*FisherDerivs1.transpose(1,0,2))
+                    
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                 # This for is unavoidable i think
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
                         tmpElem = FisherIntegrands[alpha,:,beta,:].T
                         tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
-                        
+                            
+                        tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                Fisher += tmpFisher
+                
+                GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60.)
+                    
+                # Build gradient
+                dh = vmap(jacrev(GWstrainRot, argnums=derivargs, holomorphic=True))
+                
+                FisherDerivs = onp.asarray(dh(fgrids.T, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+
+                # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
+                tmpsplit1, tmpsplit2, _ = onp.vsplit(FisherDerivs, np.array([1, nParams-2]))
+                logdLderiv = -onp.asarray(GWstrainRot(fgrids, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
+                Phicoalderiv = logdLderiv*1j
+                
+                FisherDerivs2 = onp.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
+                    
+                FisherIntegrands = (onp.conjugate(FisherDerivs2[:,:,onp.newaxis,:])*FisherDerivs2.transpose(1,0,2))
+                    
+                tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
+                # This for is unavoidable i think
+                for alpha in range(nParams):
+                    for beta in range(alpha,nParams):
+                        tmpElem = FisherIntegrands[alpha,:,beta,:].T
+                        tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
+                            
+                        tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                Fisher += tmpFisher
+                
+                FisherDerivs3 = - (FisherDerivs1 + FisherDerivs2)
+                    
+                FisherIntegrands = (onp.conjugate(FisherDerivs3[:,:,onp.newaxis,:])*FisherDerivs3.transpose(1,0,2))
+                    
+                tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
+                # This for is unavoidable i think
+                for alpha in range(nParams):
+                    for beta in range(alpha,nParams):
+                        tmpElem = FisherIntegrands[alpha,:,beta,:].T
+                        tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
+                            
                         tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
                 Fisher += tmpFisher
             
