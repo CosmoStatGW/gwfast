@@ -7,7 +7,7 @@ Created on Tue Feb  8 17:22:56 2022
 """
 
 import numpy as onp
-import utils
+import fisherUtils as utils
 import fisherTools
 
 
@@ -30,14 +30,17 @@ class DetNet(object):
         
     
     def FisherMatr(self, evParams, **kwargs):
-        self.Fishers = {}
+        #self.Fishers = {}
+        nparams = self.signals[list(self.signals.keys())[0]].wf_model.nParams
+        nevents = len(evParams[list(evParams.keys())[0]])
+        totF = onp.zeros((nparams,nparams,nevents))
         utils.check_evparams(evParams)
         for d in self.signals.keys():
             print('\nComputing Fisher for %s...' %d)
-            self.Fishers[d] =  self.signals[d].FisherMatr(evParams, **kwargs) 
+            totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
         print('\nComputing total Fisher ...')
-        totF = sum(self.Fishers.values())
-        _, _, _ = fisherTools.CheckFisher(totF)
+        #totF = sum(self.Fishers.values())
+        #_, _, _ = fisherTools.CheckFisher(totF)
         print('Done.')
         return totF
 

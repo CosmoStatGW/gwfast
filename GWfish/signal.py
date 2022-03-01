@@ -15,7 +15,7 @@ import os
 import h5py
 import copy
 
-import utils
+import fisherUtils as utils
 import Globals as glob
 import fisherTools
 
@@ -448,13 +448,14 @@ class GWSignal(object):
 
             #derivargs = (1,2,3,4,5,6,7,9)
             derivargs = (1,3,4,5,6,7)
-            nParams = 8
+            #nParams = 8
         elif self.wf_model.is_tidal:
             derivargs = (1,3,4,5,6,7,8,10,11,12,13)
-            nParams = 13
+            #nParams = 13
         else:
             derivargs = (1,3,4,5,6,7,8,10,11)
-            nParams = 11
+            #nParams = 11
+        nParams = self.wf_model.nParams
         
         if self.detector_shape=='L': 
             #Build gradient

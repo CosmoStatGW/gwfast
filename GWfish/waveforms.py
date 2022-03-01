@@ -19,7 +19,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.
 sys.path.append(SCRIPT_DIR)
 
 
-import Globals as glob
+import fisherGlobals as glob
 import utils
 
 class WaveFormModel(ABC):
@@ -38,6 +38,7 @@ class WaveFormModel(ABC):
         self.ParNums = {'Mc':0, 'dL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'eta':7, 'chiS':8,  'chiA':9, 'Phicoal':10}
         self.is_newtonian=is_newtonian
         self.is_tidal=is_tidal
+        self.nParams = 11
         
         if is_newtonian:
             # In the Newtonian case eta and the spins are not included in the Fisher, since they do not enter the signal
@@ -45,11 +46,13 @@ class WaveFormModel(ABC):
             self.ParNums.pop('eta', None)
             self.ParNums.pop('chiS', None)
             self.ParNums.pop('chiA', None)
+            self.nParams = 8
         if is_tidal:
             # Note that the Fisher is computed for LabdaTilde and deltaLambda, but the waveforms accept as input only Lambda1 and Lambda2
             self.ParNums['Phicoal']=12
             self.ParNums['LambdaTilde']=10
             self.ParNums['deltaLambda']=11
+            self.nParams = 13
             
     @abstractmethod    
     def Phi(self, f, **kwargs): 
