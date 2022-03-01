@@ -20,7 +20,7 @@ sys.path.append(SCRIPT_DIR)
 
 
 import Globals as glob
-
+import utils
 
 class WaveFormModel(ABC):
     '''
@@ -137,47 +137,49 @@ class ReducedPN_TaylorF2_BNS(WaveFormModel):
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         #Seta = np.sqrt(1.0 - 4.0*eta)
-        # These are m1/Mtot and m2/Mtot
-        m1ByM = 0.5 * (1.0 + Seta)
-        m2ByM = 0.5 * (1.0 - Seta)
         
         chi1, chi2 = kwargs['chi1z'], kwargs['chi2z']
-        chi12, chi22 = chi1*chi1, chi2*chi2
-        chi1dotchi2 = chi1*chi2
+        chi_s, chi_a = 0.5*(chi1 + chi2), 0.5*(chi1 - chi2)
+        chi_s2, chi_a2 = chi_s*chi_s, chi_a*chi_a
+        chi_sdotchi_a = chi_s*chi_a
         # flso = 1/6^(3/2)/(pi*M) -> vlso = (pi*M*flso)^(1/3) = (1/6^(3/2))^(1/3)
         vlso = 1./np.sqrt(6.)
-        # The number next to the various terms denotes the order in v, 
-        Phi03 = 1. + (20./9.)*((743./336) + (11./4.)*eta)*(v**2) - 16.*np.pi*(v**3)
-        Phi4 = 10.*((3058673./1016064.) + (5429./1008.)*eta + (617./144.)*(eta2))*(v**4)
-        Phi5 = np.pi*((38645./756.) - (65./9.)*eta)*(1.+3.*np.log(v/vlso))*(v**5)
-        Phi6 = ((11583231236531./4694215680.) - (640./3.)*np.pi - (6848./21.)*(np.euler_gamma + np.log(4.*v)) + ((15737765635./3048192.) + (2255.*(np.pi**2)/12.))*eta + (76055./1728.)*(eta2) + (127825./1296.)*(eta2*eta))*(v**6)
-        Phi7 = np.pi*((77096675./254016.) + (378515./1512.)*eta - (74045./756)*(eta2))*(v**7)
+        # The number next to the various terms denotes the order in v
         
-        # Add spin contributions
+        TF2coeffs = {}
+        TF2OverallAmpl = 3./(128. * eta)
         
-        Sp7 = (chi1*m1ByM*(- 17097.8035/4.8384+eta*28764.25/6.72+eta2*47.35/1.44 + m1ByM*(- 7189.233785/1.524096+eta*458.555/3.024-eta2*534.5/7.2)) + chi2*m2ByM*(- 17097.8035/4.8384+eta*28764.25/6.72+eta2*47.35/1.44 + m2ByM*(- 7189.233785/1.524096+eta*458.555/3.024-eta2*534.5/7.2)))*(v**7)
-        Sp6 = (np.pi*chi1*m1ByM*(1490./3. + m1ByM*260.) + np.pi*chi2*m2ByM*(1490./3. + m2ByM*260.) + (326.75/1.12 + 557.5/1.8*eta)*eta*chi1dotchi2 + (4703.5/8.4+2935./6.*m1ByM-120.*m1ByM*m1ByM)*m1ByM*m1ByM*chi12 + (-4108.25/6.72-108.5/1.2*m1ByM+125.5/3.6*m1ByM*m1ByM)*m1ByM*m1ByM*chi12 + (4703.5/8.4+2935./6.*m2ByM-120.*m2ByM*m2ByM)*m2ByM*m2ByM*chi22 + (-4108.25/6.72-108.5/1.2*m2ByM+125.5/3.6*m2ByM*m2ByM)*m2ByM*m2ByM*chi22)*(v**6)
-        # The coefficient for five and five_log is the same, avoid computing it twice
-        Temp5PNSpCoeff = - m1ByM*(1391.5/8.4-m1ByM*(1.-m1ByM)*10./3.+ m1ByM*(1276./8.1+m1ByM*(1.-m1ByM)*170./9.))*chi1 - m2ByM*(1391.5/8.4-m2ByM*(1.-m2ByM)*10./3.+ m2ByM*(1276./8.1+m2ByM*(1.-m2ByM)*170./9.))*chi2
-        Sp5 = (Temp5PNSpCoeff + 3.*Temp5PNSpCoeff*(v**5)*np.log(v))*(v**5)
-        Sp4 = (247./4.8*eta*chi1dotchi2 - 721./4.8*eta*chi1dotchi2 + (-720./9.6 + 1./9.6)*m1ByM*m1ByM*chi12 + (- 720./9.6 + 1./9.6)*m2ByM*m2ByM*chi22 + (240./9.6 - 7./9.6)*m1ByM*m1ByM*chi12 + (240./9.6 - 7./9.6)*m2ByM*m2ByM*chi22)*(v**4)
-        Sp3 = (m1ByM*(25. + 38./3.*m1ByM)*chi1 + m2ByM*(25. + 38./3.*m2ByM)*chi2)*(v**3)
-        
+        TF2coeffs['zero'] = 1.
+        TF2coeffs['one'] = 0.
+        TF2coeffs['two'] = 3715./756. + (55.*eta)/9.
+        TF2coeffs['three'] = -16.*np.pi + (113.*Seta*chi_a)/3. + (113./3. - (76.*eta)/3.)*chi_s
+        TF2coeffs['four'] = 15293365./508032. + (27145.*eta)/504.+ (3085.*eta2)/72. + (-405./8. + 200.*eta)*chi_a2 - (405.*Seta*chi_sdotchi_a)/4. + (-405./8. + (5.*eta)/2.)*chi_s2
+        # This part is common to 5 and 5log, avoid recomputing
+        TF2_5coeff_tmp = (732985./2268. - 24260.*eta/81. - 340.*eta2/9.)*chi_s + (732985./2268. + 140.*eta/9.)*Seta*chi_a
+        #TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*(1.-3.*np.log(vlso))
+        TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)
+        TF2coeffs['five_log'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*3.
+        TF2coeffs['six'] = 11583231236531./4694215680. - 640./3.*np.pi**2 - 6848./21.*np.euler_gamma + eta*(-15737765635./3048192. + 2255./12.*np.pi**2) + eta2*76055./1728. - eta2*eta*127825./1296. - (6848./21.)*np.log(4.) + np.pi*(2270.*Seta*chi_a/3. + (2270./3. - 520.*eta)*chi_s) + (75515./144. - 8225.*eta/18.)*Seta*chi_sdotchi_a + (75515./288. - 263245.*eta/252. - 480.*eta2)*chi_a2 + (75515./288. - 232415.*eta/504. + 1255.*eta2/9.)*chi_s2
+        TF2coeffs['six_log'] = -(6848./21.)
+        # The commented part includes SS and SSS contributions at 3.5PN which are not included in LAL, uncomment if needed
+        #TF2coeffs['seven'] = 77096675.*np.pi/254016. + 378515.*np.pi*eta/1512.- 74045.*np.pi*eta2/756. + (-25150083775./3048192. + 10566655595.*eta/762048. - 1042165.*eta2/3024. + 5345.*eta2*eta/36. + (14585./8. - 7270.*eta + 80.*eta2)*chi_a2)*chi_s + (14585./24. - 475.*eta/6. + 100.*eta2/3.)*chi_s2*chi_s + Seta*((-25150083775./3048192. + 26804935.*eta/6048. - 1985.*eta2/48.)*chi_a + (14585./24. - 2380.*eta)*chi_a2*chi_a + (14585./8. - 215.*eta/2.)*chi_a*chi_s2)
+        TF2coeffs['seven'] = 77096675.*np.pi/254016. + 378515.*np.pi*eta/1512.- 74045.*np.pi*eta2/756. + (-25150083775./3048192. + 10566655595.*eta/762048. - 1042165.*eta2/3024. + 5345.*eta2*eta/36.)*chi_s + Seta*((-25150083775./3048192. + 26804935.*eta/6048. - 1985.*eta2/48.)*chi_a)
+
         if self.is_tidal:
             # Add tidal contribution if needed, as in PhysRevD.89.103012
             Lambda1, Lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
-            Lam_t = (8./13.)*((1. + 7.*eta - 31.*eta2)*(Lambda1 + Lambda2) + Seta*(1. + 9.*eta - 11.*eta2)*(Lambda1 - Lambda2))
-            delLam = 0.5*(Seta*(1. - 13272./1319.*eta + 8944./1319.*eta2)*(Lambda1 + Lambda2) + (1. - 15910./1319.*eta + 32850./1319.*eta2 + 3380./1319.*eta2*eta)*(Lambda1 - Lambda2))
+            Lam_t, delLam = utils.Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta)
             
             phi_Tidal = (-0.5*39.*Lam_t)*(v**10.) + (-3115./64.*Lam_t + 6595./364.*Seta*delLam)*(v**12.)
             
-            phase = (3./128.)/(eta*(v**5))*(Phi03 + Sp3 + Phi4 + Sp4 + Phi5 + Sp5 + Phi6 + Sp6 + Phi7 + Sp7 + phi_Tidal)
+            phase = TF2OverallAmpl*(TF2coeffs['zero'] + TF2coeffs['one']*v + TF2coeffs['two']*v*v + TF2coeffs['three']*v**3 + TF2coeffs['four']*v**4 + (TF2coeffs['five'] + TF2coeffs['five_log']*np.log(v))*v**5 + (TF2coeffs['six'] + TF2coeffs['six_log']*np.log(v))*v**6 + TF2coeffs['seven']*v**7 + phi_Tidal)/(v**5.)
             
         else:
-            phase = (3./128.)/(eta*(v**5))*(Phi03 + Sp3 + Phi4 + Sp4 + Phi5 + Sp5 + Phi6 + Sp6 + Phi7 + Sp7)
+            phase = TF2OverallAmpl*(TF2coeffs['zero'] + TF2coeffs['one']*v + TF2coeffs['two']*v*v + TF2coeffs['three']*v**3 + TF2coeffs['four']*v**4 + (TF2coeffs['five'] + TF2coeffs['five_log']*np.log(v))*v**5 + (TF2coeffs['six'] + TF2coeffs['six_log']*np.log(v))*v**6 + TF2coeffs['seven']*v**7)/(v**5.)
            
+        # This pi factor is needed to include LAL f_ref rescaling, so to end up with the exact same waveform
         
-        return phase, phase + np.pi/2.
+        return phase + np.pi, phase + 3*np.pi/2.
     
     
     def Ampl(self, f, **kwargs):
@@ -234,6 +236,11 @@ class IMRPhenomD(WaveFormModel):
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
         q = 0.5*(1.0 + Seta - 2.0*eta)/eta
+        chi_s2, chi_a2 = chi_s*chi_s, chi_a*chi_a
+        chi1dotchi2 = chi1*chi2
+        chi_sdotchi_a = chi_s*chi_a
+        # flso = 1/6^(3/2)/(pi*M) -> vlso = (pi*M*flso)^(1/3) = (1/6^(3/2))^(1/3)
+        vlso = 1./np.sqrt(6.)
         # These are m1/Mtot and m2/Mtot
         m1ByM = 0.5 * (1.0 + Seta)
         m2ByM = 0.5 * (1.0 - Seta)
@@ -272,6 +279,7 @@ class IMRPhenomD(WaveFormModel):
         
         # Compute the TF2 phase coefficients and put them in a dictionary (spin effects are included up to 3.5 PN)
         # First the nonspinning part
+        '''
         TF2coeffs = {}
         TF2OverallAmpl = 3./(128. * eta)
         
@@ -296,7 +304,28 @@ class IMRPhenomD(WaveFormModel):
         TF2coeffs['three'] = TF2coeffs['three'] + m1ByM*(25.+38./3.*m1ByM)*chi1 + m2ByM*(25.+38./3.*m2ByM)*chi2
         # There is still a correction to add for consistency, since the 3PN SS contribution was not available when IMRPhenomD was tuned, this can be directly avoided, keep it to check
         TF2coeffs['six'] = TF2coeffs['six'] - ((326.75/1.12 + 557.5/1.8*eta)*eta*chi1dotchi2 + ((4703.5/8.4+2935./6.*m1ByM-120.*m1ByM*m1ByM) + (-4108.25/6.72-108.5/1.2*m1ByM+125.5/3.6*m1ByM*m1ByM))*m1ByM*m1ByM*chi12 + ((4703.5/8.4+2935./6.*m2ByM-120.*m2ByM*m2ByM) + (-4108.25/6.72-108.5/1.2*m2ByM+125.5/3.6*m2ByM*m2ByM))*m2ByM*m2ByM*chi22)
+        '''
+        TF2coeffs = {}
+        TF2OverallAmpl = 3./(128. * eta)
         
+        TF2coeffs['zero'] = 1.
+        TF2coeffs['one'] = 0.
+        TF2coeffs['two'] = 3715./756. + (55.*eta)/9.
+        TF2coeffs['three'] = -16.*np.pi + (113.*Seta*chi_a)/3. + (113./3. - (76.*eta)/3.)*chi_s
+        TF2coeffs['four'] = 15293365./508032. + (27145.*eta)/504.+ (3085.*eta2)/72. + (-405./8. + 200.*eta)*chi_a2 - (405.*Seta*chi_sdotchi_a)/4. + (-405./8. + (5.*eta)/2.)*chi_s2
+        # This part is common to 5 and 5log, avoid recomputing
+        TF2_5coeff_tmp = (732985./2268. - 24260.*eta/81. - 340.*eta2/9.)*chi_s + (732985./2268. + 140.*eta/9.)*Seta*chi_a
+        #TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*(1.-3.*np.log(vlso))
+        TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)
+        TF2coeffs['five_log'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*3.
+        # For 3PN coeff we use chi1 and chi2 so to have the quadrupole moment explicitly appearing
+        TF2coeffs['six'] = 11583.231236531/4.694215680 - 640./3.*np.pi*np.pi - 684.8/2.1*np.euler_gamma + eta*(-15737.765635/3.048192 + 225.5/1.2*np.pi*np.pi) + eta2*76.055/1.728 - eta2*eta*127.825/1.296 - np.log(4.)*684.8/2.1 + np.pi*chi1*m1ByM*(1490./3. + m1ByM*260.) + np.pi*chi2*m2ByM*(1490./3. + m2ByM*260.) + (326.75/1.12 + 557.5/1.8*eta)*eta*chi1dotchi2 + (4703.5/8.4+2935./6.*m1ByM-120.*m1ByM*m1ByM)*m1ByM*m1ByM*QuadMon1*chi12 + (-4108.25/6.72-108.5/1.2*m1ByM+125.5/3.6*m1ByM*m1ByM)*m1ByM*m1ByM*chi12 + (4703.5/8.4+2935./6.*m2ByM-120.*m2ByM*m2ByM)*m2ByM*m2ByM*QuadMon2*chi22 + (-4108.25/6.72-108.5/1.2*m2ByM+125.5/3.6*m2ByM*m2ByM)*m2ByM*m2ByM*chi22
+        TF2coeffs['six_log'] = -6848./21.
+        #TF2coeffs['seven'] = 77096675.*np.pi/254016. + 378515.*np.pi*eta/1512.- 74045.*np.pi*eta2/756. + (-25150083775./3048192. + 10566655595.*eta/762048. - 1042165.*eta2/3024. + 5345.*eta2*eta/36. + (14585./8. - 7270.*eta + 80.*eta2)*chi_a2)*chi_s + (14585./24. - 475.*eta/6. + 100.*eta2/3.)*chi_s2*chi_s + Seta*((-25150083775./3048192. + 26804935.*eta/6048. - 1985.*eta2/48.)*chi_a + (14585./24. - 2380.*eta)*chi_a2*chi_a + (14585./8. - 215.*eta/2.)*chi_a*chi_s2)
+        TF2coeffs['seven'] = 77096675.*np.pi/254016. + 378515.*np.pi*eta/1512.- 74045.*np.pi*eta2/756. + (-25150083775./3048192. + 10566655595.*eta/762048. - 1042165.*eta2/3024. + 5345.*eta2*eta/36.)*chi_s + Seta*((-25150083775./3048192. + 26804935.*eta/6048. - 1985.*eta2/48.)*chi_a)
+        #TF2coeffs['seven'] = np.pi*(770.96675/2.54016 + 378.515/1.512*eta - 740.45/7.56*eta2) + chi1*m1ByM*(-17097.8035/4.8384+eta*28764.25/6.72+eta2*47.35/1.44 + m1ByM*(-7189.233785/1.524096+eta*458.555/3.024-eta2*534.5/7.2)) + chi2*m2ByM*(-17097.8035/4.8384+eta*28764.25/6.72+eta2*47.35/1.44 + m2ByM*(-7189.233785/1.524096+eta*458.555/3.024-eta2*534.5/7.2))
+        
+        TF2coeffs['six'] = TF2coeffs['six'] - ((326.75/1.12 + 557.5/1.8*eta)*eta*chi1dotchi2 + ((4703.5/8.4+2935./6.*m1ByM-120.*m1ByM*m1ByM) + (-4108.25/6.72-108.5/1.2*m1ByM+125.5/3.6*m1ByM*m1ByM))*m1ByM*m1ByM*chi12 + ((4703.5/8.4+2935./6.*m2ByM-120.*m2ByM*m2ByM) + (-4108.25/6.72-108.5/1.2*m2ByM+125.5/3.6*m2ByM*m2ByM))*m2ByM*m2ByM*chi22)
         # Now translate into inspiral coefficients, label with the power in front of which they appear
         PhiInspcoeffs = {}
         
@@ -359,7 +388,7 @@ class IMRPhenomD(WaveFormModel):
         
         phis = np.where(fgrid < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fgrid**(2./3.)) + PhiInspcoeffs['third']*(fgrid**(1./3.)) + PhiInspcoeffs['third_log']*(fgrid**(1./3.))*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['log']*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['min_third']*(fgrid**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fgrid**(-2./3.)) + PhiInspcoeffs['min_one']/fgrid + PhiInspcoeffs['min_four_thirds']*(fgrid**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fgrid**(-5./3.)) + (PhiInspcoeffs['one']*fgrid + PhiInspcoeffs['four_thirds']*(fgrid**(4./3.)) + PhiInspcoeffs['five_thirds']*(fgrid**(5./3.)) + PhiInspcoeffs['two']*fgrid*fgrid)/eta, np.where(fgrid<fMRDJoin, (beta1*fgrid - beta3/(3.*fgrid*fgrid*fgrid) + beta2*np.log(fgrid))/eta + C1Int + C2Int*fgrid, np.where(fgrid < self.fcutPar, (-(alpha2/fgrid) + (4.0/3.0) * (alpha3 * (fgrid**(3./4.))) + alpha1 * fgrid + alpha4 * np.arctan((fgrid - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fgrid,0.)))
                 
-        return phis + np.where(fgrid < self.fcutPar, - t0*fgrid, 0.), phis + np.where(fgrid < self.fcutPar, - t0*fgrid + np.pi/2., 0.)
+        return phis + np.where(fgrid < self.fcutPar, - t0*fgrid, 0.), phis + np.pi/2. + np.where(fgrid < self.fcutPar, - t0*fgrid, 0.)
         
     def Ampl(self, f, **kwargs):
         # Useful quantities
@@ -696,7 +725,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         SS_3p5PN  = - 400.*np.pi*(QuadMon1)*chi12*m1ByM*m1ByM - 400.*np.pi*(QuadMon2)*chi22*m2ByM*m2ByM
         SSS_3p5PN = 10.*((m1ByM*m1ByM+308./3.*m1ByM)*chi1+(m2ByM*m2ByM-89./3.*m2ByM)*chi2)*(QuadMon1)*m1ByM*m1ByM*chi12 + 10.*((m2ByM*m2ByM+308./3.*m2ByM)*chi2+(m1ByM*m1ByM-89./3.*m1ByM)*chi1)*(QuadMon2)*m2ByM*m2ByM*chi22 - 440.*OctMon1*m1ByM*m1ByM*m1ByM*chi12*chi1 - 440.*OctMon2*m2ByM*m2ByM*m2ByM*chi22*chi2
         
-        return phis + np.where(fgrid < self.fcutPar, - t0*fgrid + tidal_phase + (SS_3p5PN + SSS_3p5PN)*TF2OverallAmpl*((np.pi*fgrid)**(2./3.)), 0.), phis + np.where(fgrid < self.fcutPar, - t0*fgrid + np.pi/2. + tidal_phase + (SS_3p5PN + SSS_3p5PN)*TF2OverallAmpl*((np.pi*fgrid)**(2./3.)), 0.)
+        return phis + np.where(fgrid < self.fcutPar, - t0*fgrid + tidal_phase + (SS_3p5PN + SSS_3p5PN)*TF2OverallAmpl*((np.pi*fgrid)**(2./3.)), 0.), phis + np.pi/2. + np.where(fgrid < self.fcutPar, - t0*fgrid + tidal_phase + (SS_3p5PN + SSS_3p5PN)*TF2OverallAmpl*((np.pi*fgrid)**(2./3.)), 0.)
         
     def Ampl(self, f, **kwargs):
         # Useful quantities
