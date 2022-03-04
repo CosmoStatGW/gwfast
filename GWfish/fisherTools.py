@@ -307,7 +307,7 @@ def compute_localization_region(Cov, parNum, thFid, perc_level=90, units='SqDeg'
     DelPhiSq  = Cov[parNum['phi'], parNum['phi']]
     DelThDelPhi  = Cov[parNum['phi'], parNum['theta']]
     
-    # From Barak, Cutler, PRD 69, 082005 (2004)
+    # From Barak, Cutler, PRD 69, 082005 (2004), gr-qc/0310125
     DelOmegaSr_base = 2*onp.pi*onp.sqrt(DelThSq*DelPhiSq-DelThDelPhi**2)*onp.abs(onp.sin(thFid))
     DelOmegaSr =  - DelOmegaSr_base*onp.log(1-perc_level/100)
     

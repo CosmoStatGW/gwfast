@@ -20,7 +20,7 @@ sys.path.append(SCRIPT_DIR)
 
 
 import fisherGlobals as glob
-import utils
+import fisherUtils as utils
 
 class WaveFormModel(ABC):
     '''

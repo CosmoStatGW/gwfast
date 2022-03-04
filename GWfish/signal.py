@@ -16,7 +16,7 @@ import h5py
 import copy
 
 import fisherUtils as utils
-import Globals as glob
+import fisherGlobals as glob
 import fisherTools
 
 
@@ -99,6 +99,30 @@ class GWSignal(object):
         
         self.IntegInterpArr = None
         self.compute2arms = compute2arms
+        
+        self._init_jax()
+        
+        
+    def _init_jax(self):
+        print('Initializing jax...')
+        inj_params_init = {'Mc': np.array([77.23905294]),
+                           'Phicoal': np.array([3.28297867]),
+                           'chi1z': np.array([0.2018924]),
+                           'chi2z': np.array([-0.68859213]),
+                           'dL': np.array([22.68426174]),
+                           'eta': np.array([0.20586622]),
+                           'iota': np.array([4.48411048]),
+                           'phi': np.array([0.90252645]),
+                           'psi': np.array([3.11843169]),
+                           #'snr': np.array([21.20295982]),
+                           #'tGPS': np.array([1.78168705e+09]),
+                           'tcoal': np.array([0.]),
+                           'theta': np.array([3.00702251])}
+        
+        _ = self.SNRInteg(inj_params_init, res=10)
+        #_ = self.FisherMatr(inj_params_init, res=10)
+        print('Done.')
+        
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
         import scipy.integrate as igt
