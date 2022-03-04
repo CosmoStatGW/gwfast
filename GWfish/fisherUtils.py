@@ -182,3 +182,93 @@ def GPSt_to_LMST(t_GPS, lat, long):
   LMST = t.sidereal_time('mean').value
   return jnp.array(LMST/24.)
 
+##############################################################################
+# Spherical Harmonics
+##############################################################################
+
+def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
+    # Function to compute the total signal from a collection of different modes
+    # Ampl and Phi have to be dictionaries containing the amplitudes and phases, computed on a grid of frequencies, for
+    # each mode. The keys are expected to be stings made up of l and m, e.g. for (2,2) -> key='22'
+    
+    def SpinWeighted_SphericalHarmonic(theta, phi, l, m, s=-2):
+        # Taken from arXiv:0709.0093v3 eq. (II.7), (II.8) and LALSimulation for the s=-2 case and up to l=4
+        
+        if s != -2:
+            raise ValueError('The only spin-weight implemented for the moment is s = -2.')
+            
+        if (2 == l):
+            if (-2 == m):
+                res = jnp.sqrt( 5.0 / ( 64.0 * jnp.pi ) ) * ( 1.0 - jnp.cos( theta ))*( 1.0 - jnp.cos( theta ))
+            elif (-1 == m):
+                res = jnp.sqrt( 5.0 / ( 16.0 * jnp.pi ) ) * jnp.sin( theta )*( 1.0 - jnp.cos( theta ))
+            elif (0 == m):
+                res = jnp.sqrt( 15.0 / ( 32.0 * jnp.pi ) ) * jnp.sin( theta )*jnp.sin( theta )
+            elif (1 == m):
+                res = jnp.sqrt( 5.0 / ( 16.0 * jnp.pi ) ) * jnp.sin( theta )*( 1.0 + jnp.cos( theta ))
+            elif (2 == m):
+                res = jnp.sqrt( 5.0 / ( 64.0 * jnp.pi ) ) * ( 1.0 + jnp.cos( theta ))*( 1.0 + jnp.cos( theta ))
+            else:
+                raise ValueError('Invalid m for l = 2.')
+                
+        elif (3 == l):
+            if (-3 == m):
+                res = jnp.sqrt(21.0/(2.0*jnp.pi))*jnp.cos(theta*0.5)*((jnp.sin(theta*0.5))**(5.))
+            elif (-2 == m):
+                res = jnp.sqrt(7.0/(4.0*jnp.pi))*(2.0 + 3.0*jnp.cos(theta))*((jnp.sin(theta*0.5))**(4.0))
+            elif (-1 == m):
+                res = jnp.sqrt(35.0/(2.0*jnp.pi))*(jnp.sin(theta) + 4.0*jnp.sin(2.0*theta) - 3.0*jnp.sin(3.0*theta))/32.0
+            elif (0 == m):
+                res = (jnp.sqrt(105.0/(2.0*jnp.pi))*jnp.cos(theta)*(jnp.sin(theta)*jnp.sin(theta)))*0.25
+            elif (1 == m):
+                res = -jnp.sqrt(35.0/(2.0*jnp.pi))*(jnp.sin(theta) - 4.0*jnp.sin(2.0*theta) - 3.0*jnp.sin(3.0*theta))/32.0
+            elif (2 == m):
+                res = jnp.sqrt(7.0/jnp.pi)*((jnp.cos(theta*0.5))**(4.0))*(-2.0 + 3.0*jnp.cos(theta))*0.5
+            elif (3 == m):
+                res = -jnp.sqrt(21.0/(2.0*jnp.pi))*((jnp.cos(theta/2.0))**(5.0))*jnp.sin(theta*0.5)
+            else:
+                raise ValueError('Invalid m for l = 3.')
+                
+        elif (4 == l):
+            if (-4 == m):
+                res = 3.0*jnp.sqrt(7.0/jnp.pi)*(jnp.cos(theta*0.5)*jnp.cos(theta*0.5))*((jnp.sin(theta*0.5))**6.0)
+            elif (-3 == m):
+                res = 3.0*jnp.sqrt(7.0/(2.0*jnp.pi))*jnp.cos(theta*0.5)*(1.0 + 2.0*jnp.cos(theta))*((jnp.sin(theta*0.5))**5.0)
+            elif (-2 == m):
+                res = (3.0*(9.0 + 14.0*jnp.cos(theta) + 7.0*jnp.cos(2.0*theta))*((jnp.sin(theta/2.0))**4.0))/(4.0*jnp.sqrt(jnp.pi))
+            elif (-1 == m):
+                res = (3.0*(3.0*jnp.sin(theta) + 2.0*jnp.sin(2.0*theta) + 7.0*jnp.sin(3.0*theta) - 7.0*jnp.sin(4.0*theta)))/(32.0*jnp.sqrt(2.0*jnp.pi))
+            elif (0 == m):
+                res = (3.0*jnp.sqrt(5.0/(2.0*jnp.pi))*(5.0 + 7.0*jnp.cos(2.0*theta))*(jnp.sin(theta)*jnp.sin(theta)))/16.
+            elif (1 == m):
+                res = (3.0*(3.0*jnp.sin(theta) - 2.0*jnp.sin(2.0*theta) + 7.0*jnp.sin(3.0*theta) + 7.0*jnp.sin(4.0*theta)))/(32.0*jnp.sqrt(2.0*jnp.pi))
+            elif (2 == m):
+                res = (3.0*((jnp.cos(theta*0.5))**4.0)*(9.0 - 14.0*jnp.cos(theta) + 7.0*jnp.cos(2.0*theta)))/(4.0*jnp.sqrt(jnp.pi))
+            elif (3 == m):
+                res = -3.0*jnp.sqrt(7.0/(2.0*jnp.pi))*((jnp.cos(theta*0.5))**5.0)*(-1.0 + 2.0*jnp.cos(theta))*jnp.sin(theta*0.5)
+            elif (4 == m):
+                res = 3.0*jnp.sqrt(7.0/jnp.pi)*((jnp.cos(theta*0.5))**6.0)*(jnp.sin(theta*0.5)*jnp.sin(theta*0.5))
+            else:
+                raise ValueError('Invalid m for l = 4.')
+                
+        else:
+            raise ValueError('Multipoles with l > 4 not implemented yet.')
+        
+        return res*jnp.exp(1j*m*phi)
+    
+    hp = jnp.zeros(Ampl[list(Ampl)[0]].shape)
+    hc = jnp.zeros(Ampl[list(Ampl)[0]].shape)
+    
+    for key in Ampl.keys():
+        if key in Phi.keys():
+            l, m = int(key[:2//2]), int(key[2//2:])
+            Y = SpinWeighted_SphericalHarmonic(iota, phi, l, m)
+            if m:
+                Ymstar = jnp.conj(SpinWeighted_SphericalHarmonic(iota, phi, l, -m))
+            else:
+                Ymstar = 0.
+            
+            hp = hp + Ampl[key]*jnp.exp(-1j*Phi[key])*(0.5*(Y + ((-1)**l)*Ymstar))
+            hc = hc + Ampl[key]*jnp.exp(-1j*Phi[key])*(-1j* 0.5 * (Y - ((-1)**l)* Ymstar))
+    
+    return hp, hc

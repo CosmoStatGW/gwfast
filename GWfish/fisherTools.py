@@ -14,7 +14,7 @@ import numpy as onp
 #import numpy as np
 import jax.numpy as np
 import copy
-import GWfish.fisherUtils as utils
+import fisherUtils as utils
 
 ##############################################################################
 # INVERSION AND SANITY CHECKS

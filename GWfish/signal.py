@@ -114,6 +114,8 @@ class GWSignal(object):
                            'iota': np.array([4.48411048]),
                            'phi': np.array([0.90252645]),
                            'psi': np.array([3.11843169]),
+                           'Lambda1':np.array([300.]),
+                           'Lambda2':np.array([300.]),
                            #'snr': np.array([21.20295982]),
                            #'tGPS': np.array([1.78168705e+09]),
                            'tcoal': np.array([0.]),
@@ -309,18 +311,27 @@ class GWSignal(object):
         else:
             t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
         
-        wfAp, wfAc = self.wf_model.Ampl(f, **evParams)
+        wfAmpl = self.wf_model.Ampl(f, **evParams)
         Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
-        Ap = wfAp*Fp*0.5*(1.+(np.cos(iota))**2)
-        Ac = wfAc*Fc*np.cos(iota)
+        
+        if not self.wf_model.is_HigherModes:
+            Ap = wfAmpl*Fp*0.5*(1.+(np.cos(iota))**2)
+            Ac = wfAmpl*Fc*np.cos(iota)
+        else:
+            # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
+            Phis = self.wf_model.Phi(f, **evParams)
+            # Now make up the waveform adding the spherical harmonics
+            hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
+            
+            Ap, Ac = abs(hp)*Fp, abs(hc)*Fc
         
         return Ap, Ac
     
     def GWPhase(self, evParams, f):
         # Phase of the GW signal
         Mc, eta, tcoal, Phicoal = evParams['Mc'], evParams['eta'], evParams['tcoal'], evParams['Phicoal']
-        PhiGwp, PhiGwc = self.wf_model.Phi(f, **evParams)
-        return 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGwp, 2.*np.pi*f*tcoal - Phicoal - 0.25*np.pi - PhiGwc
+        PhiGw = self.wf_model.Phi(f, **evParams)
+        return 2.*np.pi*f*tcoal - Phicoal + PhiGw
         
 
     def GWstrain(self, f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0.):
@@ -347,14 +358,27 @@ class GWSignal(object):
         else:
             phiD, phiP = Mc*0., Mc*0.
             t = tcoal
+            
         phiL = self._phiLoc(theta, phi, t, f)
-        Ap, Ac = self.GWAmplitudes(evParams, f, rot=rot)
-        Psip, Psic = self.GWPhase(evParams, f)
-        Psip = Psip + phiD + phiL
-        Psic = Psic + phiD + phiL
         
-        return Ap*np.exp(Psip*1j) + Ac*np.exp(Psic*1j)
-        #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp(Psi*1j)
+        if not self.wf_model.is_HigherModes:
+            Ap, Ac = self.GWAmplitudes(evParams, f, rot=rot)
+            Psi = self.GWPhase(evParams, f)
+            Psi = Psi + phiD + phiL
+        
+            return (Ap + 1j*Ac)*np.exp(Psi*1j)
+            #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp(Psi*1j)
+        else:
+            # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
+            wfAmpl = self.wf_model.Ampl(f, **evParams)
+            Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
+            Phis = self.wf_model.Phi(f, **evParams)
+            # Now make up the waveform adding the spherical harmonics
+            hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
+            hp = hp*Fp*np.exp(1j*(phiD + phiL + 2.*np.pi*f*tcoal - Phicoal))
+            hc = hc*Fc*np.exp(1j*(phiD + phiL + 2.*np.pi*f*tcoal - Phicoal))
+            
+            return hp + hc
     
     def SNRInteg(self, evParams, res=1000):
         # SNR calculation performing the frequency integral for each signal
