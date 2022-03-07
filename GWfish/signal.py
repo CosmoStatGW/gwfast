@@ -59,6 +59,8 @@ class GWSignal(object):
             print('WARNING: the motion of Earth gives a negligible contribution for BBH signals, consider switching it off to make the code run faster')
         if (not useEarthMotion) and (wf_model.objType == 'BNS'):
             print('WARNING: the motion of Earth gives a relevant contribution for BNS signals, consider switching it on')
+        if (not useEarthMotion) and (wf_model.objType == 'NSBH'):
+            print('WARNING: the motion of Earth gives a relevant contribution for NSBH signals, consider switching it on')
         
         self.wf_model = wf_model
         
