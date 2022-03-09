@@ -19,7 +19,12 @@ class DetNet(object):
         # {'detector_name': GWSignal object }
         
         self.signals = signals
-        
+    
+    def _update_all_seeds(self, verbose=True):
+        for d in self.signals.keys():
+            self.signals[d]._update_seed()
+            if verbose:
+                print('\nSeed for detector %s is %s'%(d,self.signals[d].seedUse))
     
     def SNR(self, evParams, res=1000):
         self.snrs = {}

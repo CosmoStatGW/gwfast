@@ -102,6 +102,8 @@ class GWSignal(object):
         self.IntegInterpArr = None
         self.compute2arms = compute2arms
         
+        onp.random.seed(None)
+        self.seedUse = onp.random.randint(2**32 - 1, size=1)
         self._init_jax()
         
         
@@ -127,6 +129,9 @@ class GWSignal(object):
         #_ = self.FisherMatr(inj_params_init, res=10)
         print('Done.')
         
+    def _update_seed(self,):
+        onp.random.seed(None)
+        self.seedUse = onp.random.randint(2**32 - 1, size=1)
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
         import scipy.integrate as igt
@@ -385,6 +390,9 @@ class GWSignal(object):
     def SNRInteg(self, evParams, res=1000):
         # SNR calculation performing the frequency integral for each signal
         # This is computationally more expensive, but needed for complex waveform models
+        if self.DutyFactor is not None:
+            onp.random.seed(self.seedUse)
+        
         utils.check_evparams(evParams)
         if not np.isscalar(evParams['Mc']):
             SNR = np.zeros(len(np.asarray(evParams['Mc'])))
@@ -451,7 +459,9 @@ class GWSignal(object):
     
     
     def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom'):
-
+        
+        if self.DutyFactor is not None:
+            onp.random.seed(self.seedUse)
         
         utils.check_evparams(evParams)
   
@@ -529,6 +539,9 @@ class GWSignal(object):
                     Fisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
 
                     Fisher[beta,alpha, :] = Fisher[alpha,beta, :]
+            if self.DutyFactor is not None:
+                excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                Fisher = Fisher*excl
         else:
             Fisher = onp.zeros((nParams,nParams,len(Mc)))
             if not self.compute2arms:
@@ -558,6 +571,9 @@ class GWSignal(object):
                             tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
                             
                             tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                    if self.DutyFactor is not None:
+                        excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                        tmpFisher = tmpFisher*excl
                     Fisher += tmpFisher
             else:
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
@@ -584,6 +600,9 @@ class GWSignal(object):
                         tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
                             
                         tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                if self.DutyFactor is not None:
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpFisher = tmpFisher*excl
                 Fisher += tmpFisher
                 
                 GWstrainRot = lambda f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, dL, theta, phi, iota, psi, tcoal, eta, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60.)
@@ -610,6 +629,9 @@ class GWSignal(object):
                         tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
                             
                         tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                if self.DutyFactor is not None:
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpFisher = tmpFisher*excl
                 Fisher += tmpFisher
                 
                 FisherDerivs3 = - (FisherDerivs1 + FisherDerivs2)
@@ -624,6 +646,9 @@ class GWSignal(object):
                         tmpFisher[alpha,beta, :] = onp.trapz(tmpElem.real/strainGrids.real, fgrids.real, axis=0)*4.
                             
                         tmpFisher[beta,alpha, :] = tmpFisher[alpha,beta, :]
+                if self.DutyFactor is not None:
+                    excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
+                    tmpFisher = tmpFisher*excl
                 Fisher += tmpFisher
             
         return Fisher
