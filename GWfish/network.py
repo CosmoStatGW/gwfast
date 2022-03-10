@@ -90,7 +90,7 @@ class DetNet(object):
         if return_inv_err:
             if return_dL_derivs:
                 print('Converting Fisher to dL to check inversion error...')
-                FisherM_check = fisherTools.log_dL_to_dL_derivative_fish(FisherM, {'logdL':1}, evParams)
+                FisherM_check = fisherTools.log_dL_to_dL_derivative_fish(FisherM, {'dL':2}, evParams)
             else: 
                 FisherM_check = FisherM
             # TODO : vectorize this
