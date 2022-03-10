@@ -113,7 +113,7 @@ def CovMatr(FisherM, evParams,
         if return_dL_derivs:
             print('Switching from derivatives wrt logdL to derivatives wrt dL...')
             #CovMatr = (ws_dL@((CovMatr.T@ws_dL).T).T).T
-            CovMatr = log_dL_to_dL_derivative_cov(CovMatr, {'dL':1}, evParams)
+            CovMatr = log_dL_to_dL_derivative_cov(CovMatr, {'dL':2}, evParams)
             
         
         return CovMatr, eps, 
