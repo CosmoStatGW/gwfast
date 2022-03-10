@@ -417,6 +417,10 @@ def addPrior(Matr, vals, ParNums, ParAdd):
     return pp+Matr
 
 
+##############################################################################
+# DERIVATIVES AND JACOBIANS
+##############################################################################
+
 def log_dL_to_dL_derivative_cov(or_matrix, ParNums, evParams):
     
     matrix = copy.deepcopy(or_matrix)
@@ -446,6 +450,127 @@ def log_dL_to_dL_derivative_fish(or_matrix, ParNums, evParams):
     return matrix
     
     
+
+def dm1_dMc(eta):
+    return (1+onp.sqrt(1-4*eta) )*eta**(-3./5.)/2
+
+def dm2_dMc(eta):
+    return (1-onp.sqrt(1-4*eta) )*eta**(-3./5.)/2
+
+def dm1_deta(Mc, eta):
+    return -Mc*(3-2*eta+3*onp.sqrt(1-4*eta))/(10*onp.sqrt(1-4*eta)*eta**(8./5.))
+#(1-onp.sqrt(1-4*eta) )*eta**(-3./5.)/2
+
+def dm2_deta(Mc, eta):
+    return -Mc*(-3+2*eta+3*onp.sqrt(1-4*eta))/(10*onp.sqrt(1-4*eta)*eta**(8./5.))
+
+
+def dMc_dm1(m1, m2): 
+    return m2*(2*m1+3*m2)/(5*(m1*m2)**(2/5)*(m1+m2)**(6/5))
+
+def dMc_dm2(m1, m2): 
+    return dMc_dm1(m2, m1)
+
+def deta_dm1(m1, m2):
+    return m2*(m2-m1)/(m1+m2)**3
+
+def deta_dm2(m1, m2):
+    return deta_dm1(m2, m1)
+
+
+def J_m1m2_Mceta(Mc, eta):
+    return onp.array( [[dm1_dMc(eta), dm1_deta(Mc, eta)],[dm2_dMc(eta), dm2_deta(Mc, eta)]] )
+
+def J_Mceta_m1m2(m1, m2):
+    return onp.array( [[dMc_dm1(m1, m2), dMc_dm2( m1, m2)],[deta_dm1(m1, m2), deta_dm2(m1, m2)]] )
+
+def m1m2_from_Mceta(Mc, eta):
+    delta = 1-4*eta
+    return (1+onp.sqrt(delta))/2*Mc*eta**(3./5.), (1-onp.sqrt(delta))/2*Mc*eta**(3./5.)
+
+
+def m1m2_to_Mceta_fish(or_matrix, ParNums, evParams):
+    
+    nparams=len(list(ParNums.keys()))
+    
+    rotMatrix = onp.identity(nparams)
+    
+    rotMatrix[onp.ix_([ParNums['Mc'],ParNums['eta']],[ParNums['Mc'],ParNums['eta']])] = J_m1m2_Mceta(evParams['Mc'], evParams['eta'])
+    
+    matrix = rotMatrix@or_matrix@rotMatrix
+    
+    return matrix
+
+
+def m1m2_to_Mceta_cov(or_matrix, ParNums, evParams):
+    
+    nparams=len(list(ParNums.keys()))
+    
+    rotMatrix = onp.identity(nparams)
+    
+    rotMatrix[onp.ix_([ParNums['Mc'],ParNums['eta']],[ParNums['Mc'],ParNums['eta']])] = J_Mceta_m1m2(*m1m2_from_Mceta(evParams['Mc'], evParams['eta']))
+    
+    matrix = rotMatrix@or_matrix@rotMatrix
+    
+    return matrix
+
+
+def Mceta_to_m1m2_fish(or_matrix, ParNums, evParams):
+    
+    nparams=len(list(ParNums.keys()))
+    
+    rotMatrix = onp.identity(nparams)
+    
+    m1, m2 = m1m2_from_Mceta(evParams['Mc'], evParams['eta'])
+    
+    rotMatrix[onp.ix_([ParNums['Mc'],ParNums['eta']],[ParNums['Mc'],ParNums['eta']])] = J_Mceta_m1m2(m1, m2)
+    
+    matrix = rotMatrix@or_matrix@rotMatrix
+    
+    return matrix
+
+
+def dchi1_dchieff(m1, m2):
+    return 1.
+
+def dchi2_dchieff(m1, m2):
+    return 1.
+
+def dchi1_dDelchi(m1, m2):
+    return m2/(m1+m2)
+
+def dchi2_dDelchi(m1, m2):
+    return -m1/(m1+m2)
+
+def J_chi1chi2_chieffDeltachi(m1, m2):
+    return onp.array( [[1., dchi1_dDelchi( m1, m2)],[1., dchi2_dDelchi(m1, m2)]] )
+
+def chi1chi2_to_chieffDeltachi_fish(or_matrix, ParNums, evParams):
+    
+    nparams=len(list(ParNums.keys()))
+    
+    rotMatrix = onp.identity(nparams)
+    
+    rotMatrix[onp.ix_([ParNums['chi1z'],ParNums['chi2z']],[ParNums['chi1z'],ParNums['chi2z']])] = J_chi1chi2_chieffDeltachi(*m1m2_from_Mceta(evParams['Mc'], evParams['eta']))
+    
+    matrix = rotMatrix@or_matrix@rotMatrix
+    
+    return matrix
+
+
+def chiSchiA_to_chi1chi2_fish(or_matrix, ParNums, evParams):
+    
+    nparams=len(list(ParNums.keys()))
+    
+    rotMatrix = onp.identity(nparams)
+    
+    J_chiSchiA_chi1chi2 = onp.array([[.5, .5], [.5, -0.5]])
+    
+    rotMatrix[onp.ix_([ParNums['chiS'],ParNums['chiA']],[ParNums['chiS'],ParNums['chiA']])] = J_chiSchiA_chi1chi2
+    
+    matrix = rotMatrix@or_matrix@rotMatrix
+    
+    return matrix
 
 
 ##############################################################################

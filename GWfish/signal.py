@@ -13,11 +13,11 @@ from jax import vmap, jacrev #jacfwd
 import time
 import os
 import h5py
-import copy
+#import copy
 
 import fisherUtils as utils
 import fisherGlobals as glob
-import fisherTools
+#import fisherTools
 
 
 
@@ -41,6 +41,7 @@ class GWSignal(object):
                 det_xax=0., 
                 verbose=False,
                 useEarthMotion = False,
+                noMotion = False, # use only for checks
                 fmin=5, fmax=None,
                 IntTablePath=None,
                 DutyFactor=None,
@@ -91,6 +92,10 @@ class GWSignal(object):
         self.strainInteg = igt.cumtrapz(self.strainFreq[mask]**(-7./3.)/S[mask], self.strainFreq[mask], initial = 0)
         
         self.useEarthMotion = useEarthMotion
+        self.noMotion = noMotion
+        if self.noMotion and self.useEarthMotion:
+            print('noMotion and useEarthMotion are True. switching off useEarthMotion ')
+            self.useEarthMotion = False
         self.fmin = fmin #Hz
         self.fmax = fmax #Hz or None
         
@@ -134,7 +139,7 @@ class GWSignal(object):
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
-        import scipy.integrate as igt
+        #import scipy.integrate as igt
         
         def IntegrandC(f, Mc, tcoal, n):
             t = tcoal - 2.18567 * ((1.21/Mc)**(5./3.)) * ((100/f[:,onp.newaxis])**(8./3.))/(3600.*24)
@@ -310,14 +315,20 @@ class GWSignal(object):
         
         #self._check_evparams(evParams)
         
-        Mc, dL, theta, phi, iota, psi, tcoal, eta = evParams['Mc'], evParams['dL'], evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal'], evParams['eta']
+        theta, phi, iota, psi, tcoal = evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal']
         
-        if self.useEarthMotion:
-            t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
+
+        if self.noMotion:
+            t = 0
             t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
         else:
-            t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
-            t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+            if self.useEarthMotion:
+                t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
+                t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+            else:
+                t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
+                t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+
         
         wfAmpl = self.wf_model.Ampl(f, **evParams)
         Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
@@ -337,10 +348,12 @@ class GWSignal(object):
     
     def GWPhase(self, evParams, f):
         # Phase of the GW signal
-        Mc, eta, tcoal, Phicoal = evParams['Mc'], evParams['eta'], evParams['tcoal'], evParams['Phicoal']
+        tcoal, Phicoal =  evParams['tcoal'], evParams['Phicoal']
         PhiGw = self.wf_model.Phi(f, **evParams)
+
         return 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + PhiGw
-        
+
+
 
     def GWstrain(self, f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., is_m1m2=False, is_chi1chi2=False):
 
@@ -370,7 +383,8 @@ class GWSignal(object):
             
             evParams['Lambda1'] = Lambda1
             evParams['Lambda2'] = Lambda2
-            
+         
+        
         if self.useEarthMotion:
             # Compute Doppler contribution
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
@@ -382,11 +396,15 @@ class GWSignal(object):
         else:
             phiD = Mc*0.
             #phiP = Mc*0.
-            t = tcoal
+            if self.noMotion:
+                t=0
+            else:
+                t = tcoal
             tmpDeltLoc = self._DeltLoc(theta, phi, t, f) # in seconds
             t = t + tmpDeltLoc/(3600.*24.)
         
         phiL = (2.*np.pi*f)*tmpDeltLoc
+
         
         if not self.wf_model.is_HigherModes:
             Ap, Ac = self.GWAmplitudes(evParams, f, rot=rot)
@@ -402,8 +420,10 @@ class GWSignal(object):
             Phis = self.wf_model.Phi(f, **evParams)
             # Now make up the waveform adding the spherical harmonics
             hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
+
             hp = hp*Fp*np.exp(1j*(phiD + phiL + 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal))
             hc = hc*Fc*np.exp(1j*(phiD + phiL + 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal))
+
             
             return hp + hc
     
@@ -540,7 +560,7 @@ class GWSignal(object):
 
             #derivargs = (1,2,3,4,5,6,7,9)
             derivargs = (1,4,5,6,7,8)
-            parNumdL = 1
+            inputNumdL = 1
         elif self.wf_model.is_tidal:
             derivargs = (1,2,4,5,6,7,8,10,11,12,13)
             inputNumdL = 2
