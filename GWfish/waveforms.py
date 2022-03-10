@@ -36,7 +36,7 @@ class WaveFormModel(ABC):
         # Note that Phicoal is always the last parameter appearing in the Fisher, by construction of the code,
         # even if we add the tidal prameters (and even if it is not the last entry of the function GWstrain in GWSignal)
         # Note that the Fisher is computed for chiS and chiA, but the waveforms accept as input only chi1z and chi2z
-        self.ParNums = {'Mc':0, 'dL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'eta':7, 'chiS':8,  'chiA':9, 'Phicoal':10}
+        self.ParNums = {'Mc':0, 'eta':1, 'dL':2, 'theta':3, 'phi':4, 'iota':5, 'psi':6, 'tcoal':7, 'chiS':8,  'chiA':9, 'Phicoal':10}
         self.is_newtonian=is_newtonian
         self.is_tidal=is_tidal
         self.is_HigherModes = is_HigherModes
@@ -44,10 +44,7 @@ class WaveFormModel(ABC):
         
         if is_newtonian:
             # In the Newtonian case eta and the spins are not included in the Fisher, since they do not enter the signal
-            self.ParNums['Phicoal']=7
-            self.ParNums.pop('eta', None)
-            self.ParNums.pop('chiS', None)
-            self.ParNums.pop('chiA', None)
+            self.ParNums = {'Mc':0, 'dL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'Phicoal':7}
             self.nParams = 8
         if is_tidal:
             # Note that the Fisher is computed for LabdaTilde and deltaLambda, but the waveforms accept as input only Lambda1 and Lambda2
