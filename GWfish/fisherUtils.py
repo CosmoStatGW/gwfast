@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
+
 from jax.config import config
 config.update("jax_enable_x64", True)
+
+import numpy as np
 import jax.numpy as jnp
 
 ##############################################################################
@@ -139,13 +141,13 @@ def GPSt_to_J200t(t_GPS):
 
 
 def check_evparams(evParams):
-        try:
-            evParams['logdL']
-        except KeyError:
-            try:
-                evParams['logdL'] = np.log(evParams['dL'])
-            except KeyError:
-                raise ValueError('One among dL and logdL has to be provided.')
+        #try:
+        #    evParams['logdL']
+        #except KeyError:
+        #    try:
+        #        evParams['logdL'] = np.log(evParams['dL'])
+        #    except KeyError:
+        #        raise ValueError('One among dL and logdL has to be provided.')
         try:
             evParams['tcoal']
         except KeyError:
