@@ -102,7 +102,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     '''
     
     # This waveform model is restricted PN (the amplitude stays as in Newtonian approximation) up to 3.5 PN
-    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False):
+    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False):
         
         if fHigh is None:
             fHigh = 4400. #Hz
@@ -111,6 +111,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         else:
             objectT = 'BBH'
         self.use_3p5PN_SpinHO = use_3p5PN_SpinHO
+        self.phiref_vlso = phiref_vlso
         super().__init__(objectT, fHigh, is_tidal=is_tidal)
     
     def Phi(self, f, **kwargs):
@@ -141,8 +142,13 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         TF2coeffs['four'] = 15293365./508032. + (27145.*eta)/504.+ (3085.*eta2)/72. + (-405./8. + 200.*eta)*chi_a2 - (405.*Seta*chi_sdotchi_a)/4. + (-405./8. + (5.*eta)/2.)*chi_s2
         # This part is common to 5 and 5log, avoid recomputing
         TF2_5coeff_tmp = (732985./2268. - 24260.*eta/81. - 340.*eta2/9.)*chi_s + (732985./2268. + 140.*eta/9.)*Seta*chi_a
-        #TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*(1.-3.*np.log(vlso))
-        TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)
+        if self.phiref_vlso:
+            TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*(1.-3.*np.log(vlso))
+            phiR = 0.
+        else:
+            TF2coeffs['five'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)
+            # This pi factor is needed to include LAL fRef rescaling, so to end up with the exact same waveform
+            phiR = np.pi
         TF2coeffs['five_log'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*3.
         TF2coeffs['six'] = 11583231236531./4694215680. - 640./3.*np.pi**2 - 6848./21.*np.euler_gamma + eta*(-15737765635./3048192. + 2255./12.*np.pi**2) + eta2*76055./1728. - eta2*eta*127825./1296. - (6848./21.)*np.log(4.) + np.pi*(2270.*Seta*chi_a/3. + (2270./3. - 520.*eta)*chi_s) + (75515./144. - 8225.*eta/18.)*Seta*chi_sdotchi_a + (75515./288. - 263245.*eta/252. - 480.*eta2)*chi_a2 + (75515./288. - 232415.*eta/504. + 1255.*eta2/9.)*chi_s2
         TF2coeffs['six_log'] = -(6848./21.)
@@ -163,9 +169,8 @@ class TaylorF2_RestrictedPN(WaveFormModel):
             
         else:
             phase = TF2OverallAmpl*(TF2coeffs['zero'] + TF2coeffs['one']*v + TF2coeffs['two']*v*v + TF2coeffs['three']*v**3 + TF2coeffs['four']*v**4 + (TF2coeffs['five'] + TF2coeffs['five_log']*np.log(v))*v**5 + (TF2coeffs['six'] + TF2coeffs['six_log']*np.log(v))*v**6 + TF2coeffs['seven']*v**7)/(v**5.)
-           
-        # This pi factor is needed to include LAL fRef rescaling, so to end up with the exact same waveform
-        return phase + np.pi - np.pi*0.25
+        
+        return phase + phiR - np.pi*0.25
 
     def Ampl(self, f, **kwargs):
         # In the restricted PN approach the amplitude is the same as for the Newtonian approximation, so this term is equivalent
