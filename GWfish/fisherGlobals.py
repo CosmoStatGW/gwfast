@@ -36,7 +36,7 @@ clight = 2.99792458*(10**5) #km/s
 clightGpc = clight/3.0856778570831e+22
 
 
-f_isco=1/(np.sqrt(6)*6*2*np.pi*GMsun_over_c3)
+f_isco=1./(np.sqrt(6.)*6.*2.*np.pi*GMsun_over_c3)
 
 ##############################################################################
 # POSITIONS OF EXIXTING DETECTORS
