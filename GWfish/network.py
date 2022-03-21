@@ -20,6 +20,11 @@ class DetNet(object):
         
         self.signals = signals
     
+    def _clear_cache(self):
+        for d in self.signals.keys():
+            self.signals[d]._clear_cache()
+        
+    
     def _update_all_seeds(self, verbose=True):
         for d in self.signals.keys():
             self.signals[d]._update_seed()

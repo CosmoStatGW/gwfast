@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
+#os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
+import jax
+#jax.devices('cpu')
+
 #Enable 64bit on JAX, fundamental
 from jax.config import config
 config.update("jax_enable_x64", True)
+#config.update("TF_CPP_MIN_LOG_LEVEL", 0)
+
+os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'       
+os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
+os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
 
 # We use both the original numpy, denoted as onp, and the JAX implementation of numpy, denoted as np
 import numpy as onp
 #import numpy as np
 import jax.numpy as np
-from jax import vmap, jacrev #jacfwd
+from jax.interpreters import xla
+from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
-import os
+#import os
 import h5py
 #import copy
 
@@ -109,15 +120,27 @@ class GWSignal(object):
         
         onp.random.seed(None)
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
+
         self._init_jax()
         
         
     def _init_jax(self):
         print('Initializing jax...')
+        os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
+        os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
+        os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
+        #os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
+        print('Jax local device count: %s' %str(jax.local_device_count()))
+        print('Jax  device count: %s' %str(jax.device_count()))
+        
+        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
+        
         inj_params_init = {'Mc': np.array([77.23905294]),
                            'Phicoal': np.array([3.28297867]),
                            'chi1z': np.array([0.2018924]),
                            'chi2z': np.array([-0.68859213]),
+                           'chis': np.array([0.2018924]),
+                           'chia': np.array([-0.68859213]),
                            'dL': np.array([22.68426174]),
                            'eta': np.array([0.20586622]),
                            'iota': np.array([4.48411048]),
@@ -131,9 +154,16 @@ class GWSignal(object):
                            'theta': np.array([3.00702251])}
         
         _ = self.SNRInteg(inj_params_init, res=10)
-        #_ = self.FisherMatr(inj_params_init, res=10)
+        #McOr, dL, theta, phi = inj_params_init['Mc'].astype('complex128'), inj_params_init['dL'].astype('complex128'), inj_params_init['theta'].astype('complex128'), inj_params_init['phi'].astype('complex128')
+        #iota, psi, tcoal, etaOr, Phicoal = inj_params_init['iota'].astype('complex128'), inj_params_init['psi'].astype('complex128'), inj_params_init['tcoal'].astype('complex128'), inj_params_init['eta'].astype('complex128'), inj_params_init['Phicoal'].astype('complex128')
+        #chiS, chiA = inj_params_init['chis'].astype('complex128'), inj_params_init['chia'].astype('complex128')
+        #_ = self._SignalDerivatives_jit(np.array([[50., 70]]).astype('complex128').T, McOr, etaOr, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, np.array([0.]).astype('complex128'), np.array([0.]).astype('complex128'), )
         print('Done.')
-        
+     
+    def _clear_cache(self):
+        print('Clearing cache...')
+        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
+     
     def _update_seed(self,):
         onp.random.seed(None)
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
@@ -519,7 +549,12 @@ class GWSignal(object):
         return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
     
     
-    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom', use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, stepNDT=1e-9):
+    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom', 
+                   use_m1m2=False, use_chi1chi2=False, 
+                   computeRealDeriv=False, computeDerivFinDiff=False, 
+                   **kwargs):
+                   #stepNDT=1e-9,
+                   #parallel=False):
         # If use_m1m2=True the Fisher is computed w.r.t. m1 and m2, not Mc and eta
         # If use_chi1chi2=True the Fisher is computed w.r.t. chi1z and chi2z, not chiS and chiA
         if self.DutyFactor is not None:
@@ -587,7 +622,7 @@ class GWSignal(object):
         
         if self.detector_shape=='L': 
             # Compute derivatives
-            FisherDerivs = self._SignalDerivatives(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeDerivFinDiff=computeDerivFinDiff, stepNDT=stepNDT)
+            FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
             
             FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
     
@@ -607,7 +642,7 @@ class GWSignal(object):
             if not self.compute2arms:
                 for i in range(3):
                     # Change rot and compute derivatives
-                    FisherDerivs = self._SignalDerivatives(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeDerivFinDiff=computeDerivFinDiff, stepNDT=stepNDT)
+                    FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
                     
                     FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
                     
@@ -627,11 +662,15 @@ class GWSignal(object):
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
             
                 # Compute derivatives
-                FisherDerivs1 = self._SignalDerivatives(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeDerivFinDiff=computeDerivFinDiff, stepNDT=stepNDT)
+                FisherDerivs1 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
+                
+                #print('Clearing cache...')
+                #self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
 
                 FisherIntegrands = (onp.conjugate(FisherDerivs1[:,:,onp.newaxis,:])*FisherDerivs1.transpose(1,0,2))
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
+                print('Filling matrix for 1st arm...')
                 # This for is unavoidable i think
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
@@ -644,12 +683,14 @@ class GWSignal(object):
                     tmpFisher = tmpFisher*excl
                 Fisher += tmpFisher
                 
-                FisherDerivs2 = self._SignalDerivatives(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeDerivFinDiff=computeDerivFinDiff, stepNDT=stepNDT)
-
+                
+                FisherDerivs2 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
+    
                 FisherIntegrands = (onp.conjugate(FisherDerivs2[:,:,onp.newaxis,:])*FisherDerivs2.transpose(1,0,2))
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                 # This for is unavoidable i think
+                print('Filling matrix for 2nd arm...')
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
                         tmpElem = FisherIntegrands[alpha,:,beta,:].T
@@ -667,6 +708,7 @@ class GWSignal(object):
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                 # This for is unavoidable i think
+                print('Filling matrix for 3rd arm...')
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
                         tmpElem = FisherIntegrands[alpha,:,beta,:].T
@@ -680,8 +722,15 @@ class GWSignal(object):
             
         return Fisher
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, stepNDT=1e-9):
     
+    
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, 
+                           rot=0., use_m1m2=False, use_chi1chi2=False, 
+                           computeRealDeriv=False, computeDerivFinDiff=False, stepNDT=1e-9,
+                           
+                           ):
+        
+        print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it.
         
         if self.wf_model.is_newtonian:
@@ -702,9 +751,10 @@ class GWSignal(object):
         if not computeRealDeriv:
             if not computeDerivFinDiff:
                 GWstrainUse = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
-                dh = vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))
-        
-                FisherDerivs = np.asarray(dh(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+                
+                #dh =  vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))
+                
+                FisherDerivs = np.asarray(vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
             else:
                 import numdifftools as nd
                 if self.wf_model.is_newtonian:
@@ -733,10 +783,12 @@ class GWSignal(object):
                 Psip = Psipfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
                 Psic = Psicfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
                 
+                
                 dAp = vmap(jacrev(Apfun, argnums=derivargs))
                 dAc = vmap(jacrev(Acfun, argnums=derivargs))
                 dPsip = vmap(jacrev(Psipfun, argnums=derivargs))
                 dPsic = vmap(jacrev(Psicfun, argnums=derivargs))
+               
                 
                 ApDeriv = np.asarray(dAp(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
                 AcDeriv = np.asarray(dAc(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
@@ -802,8 +854,10 @@ class GWSignal(object):
         #FisherDerivs = np.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
         # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
         tcelem = self.wf_model.ParNums['tcoal']
-        FisherDerivs = onp.array(FisherDerivs)
-        FisherDerivs[tcelem,:,:] = FisherDerivs[tcelem,:,:]/(3600.*24.)
+        #FisherDerivs = onp.array(FisherDerivs)
+        FisherDerivs.at[tcelem,:,:].set( FisherDerivs[tcelem,:,:]/(3600.*24.))
+        
+        #print('Shape of FisherDerivs: %s' %str(FisherDerivs.shape))
         
         return FisherDerivs
         

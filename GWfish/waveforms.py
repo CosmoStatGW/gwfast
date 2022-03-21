@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
+#os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
+import jax
+#jax.devices('cpu')
 
 from jax.config import config
 config.update("jax_enable_x64", True)
@@ -28,7 +32,7 @@ class WaveFormModel(ABC):
     Abstract class to compute waveforms
     '''
     
-    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False):
+    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=False):
         # The kind of system the wf model is made for, can be 'BBH' or 'BNS'
         self.objType = objType 
         # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun)
@@ -41,6 +45,7 @@ class WaveFormModel(ABC):
         self.is_tidal=is_tidal
         self.is_HigherModes = is_HigherModes
         self.nParams = 11
+        self.is_chi1chi2 = is_chi1chi2
         
         if is_newtonian:
             # In the Newtonian case eta and the spins are not included in the Fisher, since they do not enter the signal
@@ -51,7 +56,11 @@ class WaveFormModel(ABC):
             self.ParNums['LambdaTilde']=11
             self.ParNums['deltaLambda']=12
             self.nParams = 13
-            
+        if is_chi1chi2:
+            self.ParNums['chi1z'] = self.ParNums['chiS']
+            self.ParNums['chi2z'] = self.ParNums['chiA']
+            self.ParNums.pop('chiS')
+            self.ParNums.pop('chiA')
     @abstractmethod    
     def Phi(self, f, **kwargs): 
         # The frequency of the GW, as a function of frequency
@@ -81,10 +90,10 @@ class NewtInspiral(WaveFormModel):
     Leading order (inspiral only) waveform model
     '''
     
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Cut from M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1) it seems be that, for BNS in the non-tidal case, the cut frequency should be lowered to (0.04/(2.*np.pi*glob.GMsun_over_c3))/Mtot.
-        super().__init__('BBH', 4400., is_newtonian=True)
+        super().__init__('BBH', 4400., is_newtonian=True, **kwargs)
     
     def Phi(self, f, **kwargs):
         phase = 3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)
@@ -102,7 +111,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     '''
     
     # This waveform model is restricted PN (the amplitude stays as in Newtonian approximation) up to 3.5 PN
-    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False):
+    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, **kwargs):
         
         if fHigh is None:
             fHigh = 4400. #Hz
@@ -112,7 +121,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
             objectT = 'BBH'
         self.use_3p5PN_SpinHO = use_3p5PN_SpinHO
         self.phiref_vlso = phiref_vlso
-        super().__init__(objectT, fHigh, is_tidal=is_tidal)
+        super().__init__(objectT, fHigh, is_tidal=is_tidal, **kwargs)
     
     def Phi(self, f, **kwargs):
         # From A. Buonanno, B. Iyer, E. Ochsner, Y. Pan, B.S. Sathyaprakash - arXiv:0907.0700 - eq. (3.18) plus spins as in arXiv:1107.1267 eq. (5.3) up to 2.5PN and PhysRevD.93.084054 eq. (6) for 3PN and 3.5PN
@@ -197,7 +206,7 @@ class IMRPhenomD(WaveFormModel):
     IMRPhenomD waveform model
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -205,7 +214,7 @@ class IMRPhenomD(WaveFormModel):
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
          
-        super().__init__('BBH', fcutPar)
+        super().__init__('BBH', fcutPar, **kwargs)
         
         self.QNMgrid_a     = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
         self.QNMgrid_fring = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fring.txt'))
@@ -498,7 +507,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
     IMRPhenomD_NRTidal waveform model
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1905.06011
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -506,7 +515,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
          
-        super().__init__('BNS', fcutPar, is_tidal=True)
+        super().__init__('BNS', fcutPar, is_tidal=True, **kwargs)
         
         self.QNMgrid_a     = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
         self.QNMgrid_fring = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fring.txt'))
@@ -877,7 +886,7 @@ class IMRPhenomHM(WaveFormModel):
     IMRPhenomHM waveform model
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1708.00404, arXiv:1909.10010
-    def __init__(self):
+    def __init__(self, **kwargs):
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -885,7 +894,7 @@ class IMRPhenomHM(WaveFormModel):
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
          
-        super().__init__('BBH', fcutPar, is_HigherModes=True)
+        super().__init__('BBH', fcutPar, is_HigherModes=True, **kwargs)
         
         # List of phase shifts: the index is the azimuthal number m
         self.complShiftm = np.array([0., np.pi*0.5, 0., -np.pi*0.5, np.pi, np.pi*0.5, 0.])
@@ -1353,14 +1362,14 @@ class IMRPhenomNSBH(WaveFormModel):
           but this can be raised if needed. In this case, it is necessary to change tha name of the file assigned to self.path_xiTide_tab and the res parameter passed to _make_xiTide_interpolator())
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1509.00512, arXiv:1905.06011
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, **kwargs):
     
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
         self.PHI_fJoin_INS = 0.018
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
         self.verbose=verbose
-        super().__init__('NSBH', fcutPar, is_tidal=True)
+        super().__init__('NSBH', fcutPar, is_tidal=True, **kwargs)
         
         self.QNMgrid_a       = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
         self.QNMgrid_fring   = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fring.txt'))

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
+import os
+os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
+import jax
+jax.devices('cpu')
 from jax.config import config
 config.update("jax_enable_x64", True)
 
@@ -79,7 +82,7 @@ def CovMatr(FisherM, evParams,
         else: 
             FisherM_or = FisherM
         
-        evals, evecs, condNumber = CheckFisher(FisherM, condNumbMax=condNumbMax)
+        evals, evecs, condNumber = CheckFisher(FisherM, condNumbMax=condNumbMax, use_mpmath=use_mpmath)
         CovMatr = inverse_vect(FisherM, invMethod=invMethod)        
         #CovMatr[:, :, onp.squeeze(onp.where(condNumber>condNumbMax))] = onp.full(CovMatr[:, :, onp.squeeze(onp.where(condNumber>condNumbMax))].shape, onp.nan)
         
@@ -139,6 +142,12 @@ def CovMatr_mpmath(FisherM, evParams,
             U, S, V = mpmath.svd(FisherM_)
             cc=V.T*mpmath.diag([1/s for s in S])*U.T
             #onp.dot(v.transpose(),onp.dot(onp.diag(s**-1),u.transpose()))
+        elif invMethod=='lu':
+            P, L, U = mpmath.lu(FisherM_)
+            ll = P*L
+            llinv = ll**-1
+            uinv=U**-1
+            cc = uinv*llinv
             
         CovMatr_ = ws*cc*ws
         eps_ = max( ff*CovMatr_-mpmath.diag( [mpmath.ctx_mp_python.mpf(1.) for i in range(FisherM.shape[0])]))
@@ -150,13 +159,14 @@ def CovMatr_mpmath(FisherM, evParams,
             wp_min = 0
             found_any=False
             for i,wp_ in enumerate(wp):
-                #print(wp_)
                 E, ER = mpmath.eig(ff)
-                #Eem = mpmath.diag([1/e for e in E])
                 E1 = [1./onp.abs(e) if (onp.abs(e)>wp_ ) else mpmath.ctx_mp_python.mpf(1./onp.abs(wp_)) for e in E]
-                #E1 = [1./np.abs(e) if (np.abs(e)>wp ) else mpmath.ctx_mp_python.mpf(1./np.abs(wp)) for e in E]
                 Eem = mpmath.diag(E1)
                 cc = ER*(Eem)*ER.T
+                #U, S, V = mpmath.svd(FisherM_)
+                #S1 = [1./onp.abs(e) if (onp.abs(e)>wp_ ) else mpmath.ctx_mp_python.mpf(1./onp.abs(wp_)) for e in S]
+                #cc=V.T*mpmath.diag([ss for ss in S1])*U.T
+                
                               
                 eps_ = max( ff*cc-mpmath.diag( [mpmath.ctx_mp_python.mpf(1.) for i in range(FisherM.shape[0])]))
                 if eps_min>eps_:
@@ -295,7 +305,7 @@ def inverse_vect(A, invMethod, wp=None):
                 
             
             
-def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True):
+def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True, verbose=False):
         # Perform some sanity checks on the Fisher matrix, in particular:
         # - compute the eigenvalues and eigenvectors
         # - compute the condition number (ratio of the largest to smallest eigenvalue) and check this is not large
@@ -309,7 +319,7 @@ def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True):
             evecs = onp.zeros(FisherM.shape[::-1])
             for k in range(FisherM.shape[-1]):
                 aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
-                E, ER = mpmath.eig(aam)
+                E, ER = mpmath.eigh(aam)
                 evals[k, :] = onp.array(E, dtype=onp.float128)
                 evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
         
@@ -318,10 +328,10 @@ def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True):
         
         condNumber = onp.abs(evals).max(axis=1)/onp.abs(evals).min(axis=1)
         
-        if onp.any(condNumber>condNumbMax):
+        if onp.any(condNumber>condNumbMax) and verbose:
             print('WARNING: the condition number is too large (%s>%s)'%(condNumber,condNumbMax) )
             print('Unreliable covariance at positions ' +str(condNumber>condNumbMax))
-        else:
+        elif verbose:
             print('Condition number= %s . Ok. '%condNumber)
         
         return evals, evecs, condNumber
