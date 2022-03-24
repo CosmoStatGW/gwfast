@@ -50,7 +50,7 @@ class GWSignal(object):
                 det_lat=40.44,
                 det_long=9.45,
                 det_xax=0., 
-                verbose=False,
+                verbose=True,
                 useEarthMotion = False,
                 noMotion = False, # use only for checks
                 fmin=5, fmax=None,
@@ -133,7 +133,7 @@ class GWSignal(object):
         print('Jax local device count: %s' %str(jax.local_device_count()))
         print('Jax  device count: %s' %str(jax.device_count()))
         
-        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17,18,19))
+        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
         
         inj_params_init = {'Mc': np.array([77.23905294]),
                            'Phicoal': np.array([3.28297867]),
@@ -152,13 +152,19 @@ class GWSignal(object):
                            #'tGPS': np.array([1.78168705e+09]),
                            'tcoal': np.array([0.]),
                            'theta': np.array([3.00702251])}
-        
+        verboseOr = self.verbose
+        self.verbose = False
+        detector_shapeOr = self.detector_shape
+        self.detector_shape = 'L' # Get a faster Initialization with an L
         _ = self.SNRInteg(inj_params_init, res=10)
+        _ = self.FisherMatr(inj_params_init, res=10)
         #McOr, dL, theta, phi = inj_params_init['Mc'].astype('complex128'), inj_params_init['dL'].astype('complex128'), inj_params_init['theta'].astype('complex128'), inj_params_init['phi'].astype('complex128')
         #iota, psi, tcoal, etaOr, Phicoal = inj_params_init['iota'].astype('complex128'), inj_params_init['psi'].astype('complex128'), inj_params_init['tcoal'].astype('complex128'), inj_params_init['eta'].astype('complex128'), inj_params_init['Phicoal'].astype('complex128')
         #chiS, chiA = inj_params_init['chis'].astype('complex128'), inj_params_init['chia'].astype('complex128')
         #_ = self._SignalDerivatives_jit(np.array([[50., 70]]).astype('complex128').T, McOr, etaOr, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, np.array([0.]).astype('complex128'), np.array([0.]).astype('complex128'), )
         print('Done.')
+        self.verbose = verboseOr
+        self.detector_shape = detector_shapeOr
      
     def _clear_cache(self):
         print('Clearing cache...')
@@ -605,12 +611,14 @@ class GWSignal(object):
         fminarr = np.full(fcut.shape, self.fmin)
         if res is None and df is not None:
             res = np.floor( np.real((1+(fcut-fminarr)/df)))
+            res = np.amax(res)
         elif res is None and df is None:
             raise ValueError('Provide either resolution in frequency or step size.')
         if spacing=='lin':
             fgrids = np.linspace(fminarr, fcut, num=int(res))
         elif spacing=='geom':
             fgrids = np.geomspace(fminarr, fcut, num=int(res))
+            
         #fgrids = np.arange(fminarr, np.real(fcut), df, ).astype('complex128') #dtype=fcut.dtype)
         #print('frequency grid: fmin=%s, fmax= %s, step=%s '%(fminarr,fcut, df))
         #
@@ -653,6 +661,9 @@ class GWSignal(object):
                     
                     tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                     # This for is unavoidable i think
+                    if self.verbose:
+                        print('Filling matrix for arm %s...'%(i+1))
+
                     for alpha in range(nParams):
                         for beta in range(alpha,nParams):
                             tmpElem = FisherIntegrands[alpha,:,beta,:].T
@@ -677,7 +688,8 @@ class GWSignal(object):
                 FisherIntegrands = (onp.conjugate(FisherDerivs1[:,:,onp.newaxis,:])*FisherDerivs1.transpose(1,0,2))
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
-                print('Filling matrix for 1st arm...')
+                if self.verbose:
+                    print('Filling matrix for arm 1...')
                 # This for is unavoidable i think
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
@@ -698,7 +710,8 @@ class GWSignal(object):
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                 # This for is unavoidable i think
-                print('Filling matrix for 2nd arm...')
+                if self.verbose:
+                    print('Filling matrix for arm 2...')
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
                         tmpElem = FisherIntegrands[alpha,:,beta,:].T
@@ -716,7 +729,8 @@ class GWSignal(object):
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
                 # This for is unavoidable i think
-                print('Filling matrix for 3rd arm...')
+                if self.verbose:
+                    print('Filling matrix for arm 3...')
                 for alpha in range(nParams):
                     for beta in range(alpha,nParams):
                         tmpElem = FisherIntegrands[alpha,:,beta,:].T
@@ -733,9 +747,9 @@ class GWSignal(object):
     
     
     def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=False, stepNDT=1e-9):
-        
-        print('Computing derivatives...')
-        # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it.
+        if self.verbose:
+            print('Computing derivatives...')
+        # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal
         
         if self.wf_model.is_newtonian:
             print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
@@ -757,6 +771,7 @@ class GWSignal(object):
                 inputNumdL, inputNumiota = 2, 3
             else:
                 derivargs = (1,2,3,4,5,6,7,8,9,10,11)
+                
         nParams = self.wf_model.nParams
         
         if not computeRealDeriv:
@@ -1033,7 +1048,7 @@ class GWSignal(object):
             ampC_phider = wfhc*Fc_phider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
         
             phiD_phideriv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.-2.*np.pi*locDt_phider)
-            phiL_phideriv = 2.*np.pi*f*locDt_phider
+            phiL_phideriv = 2.*np.pi*f*locDt_phider*(3600.*24.)
             
             return ampP_phider + 1j*(phiD_phideriv + phiL_phideriv)*hp + ampC_phider + 1j*(phiD_phideriv + phiL_phideriv)*hc
         
@@ -1048,27 +1063,27 @@ class GWSignal(object):
                 
                 return Delt_thder/(3600.*24.) # in days
             
-            def afun_thder(ra, dec, t, rot):
+            def afun_thder(ra, dec, t, rot, loc_thder):
                 phir = self.det_long_rad
-                a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(3.-2.*np.sin(2.*dec))*np.cos(2.*(ra - phir - 2.*np.pi*t))
-                a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-2.*np.sin(2.*dec))*np.sin(2.*(ra - phir - 2.*np.pi*t))
-                a3 = -0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*2.*np.cos(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)
-                a4 = -0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*2.*np.cos(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)
+                a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(-2.*np.sin(2.*dec))*np.cos(2.*(ra - phir - 2.*np.pi*t)) + 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad)) *(3.-np.cos(2.*dec))*np.sin(2.*(ra - phir - 2.*np.pi*t))*(4.*np.pi*loc_thder)
+                a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(-2.*np.sin(2.*dec))*np.sin(2.*(ra - phir - 2.*np.pi*t)) - 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-np.cos(2.*dec))*np.cos(2.*(ra - phir - 2.*np.pi*t))*(4.*np.pi*loc_thder)
+                a3 = -0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*2.*np.cos(2.*dec)*np.cos(ra - phir - 2.*np.pi*t) + 0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)*(2.*np.pi*loc_thder)
+                a4 = -0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*2.*np.cos(2.*dec)*np.sin(ra - phir - 2.*np.pi*t) - 0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)*(2.*np.pi*loc_thder)
                 a5 = 2.*3.*0.25*np.sin(2*(self.det_xax_rad+rot))*((np.cos(self.det_lat_rad))**2)*np.cos(dec)*np.sin(dec)
                 return a1 - a2 + a3 - a4 + a5
             
-            def bfun_thder(ra, dec, t, rot):
+            def bfun_thder(ra, dec, t, rot, loc_thder):
                 phir = self.det_long_rad
-                b1 = -np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.cos(dec)*np.cos(2.*(ra - phir - 2.*np.pi*t))
-                b2 = -0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.cos(dec)*np.sin(2.*(ra - phir - 2.*np.pi*t))
-                b3 = np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(dec)*np.cos(ra - phir - 2.*np.pi*t)
-                b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(dec)*np.sin(ra - phir - 2.*np.pi*t)
+                b1 = -np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.cos(dec)*np.cos(2.*(ra - phir - 2.*np.pi*t)) + np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.sin(dec)*np.sin(2.*(ra - phir - 2.*np.pi*t))*(4.*np.pi*loc_thder)
+                b2 = -0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.cos(dec)*np.sin(2.*(ra - phir - 2.*np.pi*t)) - 0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.sin(dec)*np.cos(2.*(ra - phir - 2.*np.pi*t))*(4.*np.pi*loc_thder)
+                b3 = np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(dec)*np.cos(ra - phir - 2.*np.pi*t) + np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.cos(dec)*np.sin(ra - phir - 2.*np.pi*t)*(2.*np.pi*loc_thder)
+                b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(dec)*np.sin(ra - phir - 2.*np.pi*t) - 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.cos(dec)*np.cos(ra - phir - 2.*np.pi*t)*(2.*np.pi*loc_thder)
                 
                 return b1 + b2 + b3 + b4
             
             locDt_thder = Delt_loc_thder(ras, decs, tnoloc)
-            afac_thder = afun_thder(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_thder)
-            bfac_thder = bfun_thder(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_thder)
+            afac_thder = afun_thder(ras, decs, t, rot_rad, locDt_thder)
+            bfac_thder = bfun_thder(ras, decs, t, rot_rad, locDt_thder)
             
             Fp_thder = np.sin(self.angbtwArms)*(afac_thder*np.cos(2.*psi) + bfac_thder*np.sin(2*psi))
             Fc_thder = np.sin(self.angbtwArms)*(bfac_thder*np.cos(2.*psi) - afac_thder*np.sin(2*psi))
@@ -1076,7 +1091,7 @@ class GWSignal(object):
             ampP_thder = wfhp*Fp_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             ampC_thder = wfhc*Fc_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             phiD_thderiv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.cos(theta)*np.cos(2.*np.pi*t - phi) - 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*2.*np.pi*locDt_thder
-            phiL_thderiv = 2.*np.pi*f*locDt_thder
+            phiL_thderiv = 2.*np.pi*f*locDt_thder*(3600.*24.)
             
             return ampP_thder + 1j*(phiD_thderiv + phiL_thderiv)*hp + ampC_thder + 1j*(phiD_thderiv + phiL_thderiv)*hc
         
@@ -1118,7 +1133,7 @@ class GWSignal(object):
             ampP_tcder = wfhp*Fp_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             ampC_tcder = wfhc*Fc_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             phiD_tcderiv = -4.*np.pi*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.+locDt_tcder)
-            phiL_tcderiv = 2.*np.pi*f*locDt_tcder
+            phiL_tcderiv = 2.*np.pi*f*locDt_tcder*(3600.*24.)
 
             return ampP_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hp + ampC_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hc
         
