@@ -133,7 +133,7 @@ class GWSignal(object):
         print('Jax local device count: %s' %str(jax.local_device_count()))
         print('Jax  device count: %s' %str(jax.device_count()))
         
-        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
+        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17,18,19))
         
         inj_params_init = {'Mc': np.array([77.23905294]),
                            'Phicoal': np.array([3.28297867]),
@@ -358,20 +358,19 @@ class GWSignal(object):
             else:
                 t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
                 t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
-
-        
-        wfAmpl = self.wf_model.Ampl(f, **evParams)
+        # wfAmpl = self.wf_model.Ampl(f, **evParams)
         Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
         
         if not self.wf_model.is_HigherModes:
+            wfAmpl = self.wf_model.Ampl(f, **evParams)
             Ap = wfAmpl*Fp*0.5*(1.+(np.cos(iota))**2)
             Ac = wfAmpl*Fc*np.cos(iota)
         else:
             # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
-            Phis = self.wf_model.Phi(f, **evParams)
+            #Phis = self.wf_model.Phi(f, **evParams)
             # Now make up the waveform adding the spherical harmonics
-            hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
-            
+            #hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
+            hp, hc = self.wf_model.hphc(f, **evParams)
             Ap, Ac = abs(hp)*Fp, abs(hc)*Fc
         
         return Ap, Ac
@@ -455,12 +454,12 @@ class GWSignal(object):
             #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp((Psi+phiP)*1j)
         else:
             # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
-            wfAmpl = self.wf_model.Ampl(f, **evParams)
+            #wfAmpl = self.wf_model.Ampl(f, **evParams)
             Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
-            Phis = self.wf_model.Phi(f, **evParams)
+            #Phis = self.wf_model.Phi(f, **evParams)
             # Now make up the waveform adding the spherical harmonics
-            hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
-
+            #hp, hc = utils.Add_Higher_Modes(wfAmpl, Phis, iota)
+            hp, hc = self.wf_model.hphc(f, **evParams)
             hp = hp*Fp*np.exp(1j*(phiD + phiL + 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal))
             hc = hc*Fc*np.exp(1j*(phiD + phiL + 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal))
             
@@ -551,7 +550,7 @@ class GWSignal(object):
     
     def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom', 
                    use_m1m2=False, use_chi1chi2=False, 
-                   computeRealDeriv=False, computeDerivFinDiff=False, 
+                   computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=False,
                    **kwargs):
                    #stepNDT=1e-9,
                    #parallel=False):
@@ -619,10 +618,14 @@ class GWSignal(object):
         strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
 
         nParams = self.wf_model.nParams
+        tcelem = self.wf_model.ParNums['tcoal']
         
         if self.detector_shape=='L': 
             # Compute derivatives
-            FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
+            FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+            # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
+            FisherDerivs = onp.array(FisherDerivs)
+            FisherDerivs[tcelem,:,:] /= (3600.*24.)
             
             FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
     
@@ -642,8 +645,10 @@ class GWSignal(object):
             if not self.compute2arms:
                 for i in range(3):
                     # Change rot and compute derivatives
-                    FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
-                    
+                    FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                    # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
+                    FisherDerivs = onp.array(FisherDerivs)
+                    FisherDerivs[tcelem,:,:] /= (3600.*24.)
                     FisherIntegrands = (onp.conjugate(FisherDerivs[:,:,onp.newaxis,:])*FisherDerivs.transpose(1,0,2))
                     
                     tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
@@ -662,8 +667,10 @@ class GWSignal(object):
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
             
                 # Compute derivatives
-                FisherDerivs1 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
-                
+                FisherDerivs1 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
+                FisherDerivs1 = onp.array(FisherDerivs1)
+                FisherDerivs1[tcelem,:,:] /= (3600.*24.)
                 #print('Clearing cache...')
                 #self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
 
@@ -684,8 +691,9 @@ class GWSignal(object):
                 Fisher += tmpFisher
                 
                 
-                FisherDerivs2 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, **kwargs)
-    
+                FisherDerivs2 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                FisherDerivs2 = onp.array(FisherDerivs2)
+                FisherDerivs2[tcelem,:,:] /= (3600.*24.)
                 FisherIntegrands = (onp.conjugate(FisherDerivs2[:,:,onp.newaxis,:])*FisherDerivs2.transpose(1,0,2))
                     
                 tmpFisher = onp.zeros((nParams,nParams,len(Mc)))
@@ -724,11 +732,7 @@ class GWSignal(object):
     
     
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, 
-                           rot=0., use_m1m2=False, use_chi1chi2=False, 
-                           computeRealDeriv=False, computeDerivFinDiff=False, stepNDT=1e-9,
-                           
-                           ):
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=False, stepNDT=1e-9):
         
         print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it.
@@ -736,16 +740,23 @@ class GWSignal(object):
         if self.wf_model.is_newtonian:
             print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
             #derivargs = (1,4,5,6,7,8)
-            derivargs = (1,3,4,5,6,7,8,9)
-            inputNumdL = 1
+            if computeAnalyticalDeriv:
+                derivargs = (1,6)
+                inputNumdL, inputNumiota = 1, 2
+            else:
+                derivargs = (1,3,4,5,6,7,8,9)
         elif self.wf_model.is_tidal:
-            #derivargs = (1,2,4,5,6,7,8,10,11,12,13)
-            derivargs = (1,2,3,4,5,6,7,8,9,10,11,12,13)
-            inputNumdL = 2
+            if computeAnalyticalDeriv:
+                derivargs = (1,2,6,10,11,12,13)
+                inputNumdL, inputNumiota = 2, 3
+            else:
+                derivargs = (1,2,3,4,5,6,7,8,9,10,11,12,13)
         else:
-            #derivargs = (1,2,4,5,6,7,8,10,11)
-            derivargs = (1,2,3,4,5,6,7,8,9,10,11)
-            inputNumdL = 2
+            if computeAnalyticalDeriv:
+                derivargs = (1,2,6,10,11)
+                inputNumdL, inputNumiota = 2, 3
+            else:
+                derivargs = (1,2,3,4,5,6,7,8,9,10,11)
         nParams = self.wf_model.nParams
         
         if not computeRealDeriv:
@@ -758,14 +769,26 @@ class GWSignal(object):
             else:
                 import numdifftools as nd
                 if self.wf_model.is_newtonian:
-                    GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
-                    evpars = [Mc, dL, theta, phi, iota, psi, tcoal, Phicoal]
+                    if not computeAnalyticalDeriv:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, pars[1], psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, iota]
+                    else:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, dL, theta, phi, iota, psi, tcoal, Phicoal]
                 elif self.wf_model.is_tidal:
-                    GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
-                    evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
+                    if not computeAnalyticalDeriv:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
+                    else:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, eta, iota, chiS, chiA, LambdaTilde, deltaLambda]
                 else:
-                    GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
-                    evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA]
+                    if not computeAnalyticalDeriv:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA]
+                    else:
+                        GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
+                        evpars = [Mc, eta, iota, chiS, chiA]
                 dh = nd.Jacobian(GWstrainUse, step=stepNDT, method='central', order=2, n=1)
                 FisherDerivs = np.asarray(dh(evpars))
                 if len(Mc) == 1:
@@ -800,23 +823,44 @@ class GWSignal(object):
                 import numdifftools as nd
                 
                 if self.wf_model.is_newtonian:
-                    Apfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
-                    Acfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
-                    Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                    Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
-                    evpars = [Mc, dL, theta, phi, iota, psi, tcoal, Phicoal]
+                    if not computeAnalyticalDeriv:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, dL, theta, phi, iota, psi, tcoal, Phicoal]
+                    else:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, pars[1], psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, pars[1], psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, pars[1], psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, pars[1], psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, iota]
                 elif self.wf_model.is_tidal:
-                    Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
-                    Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
-                    Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                    Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
-                    evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
+                    if not computeAnalyticalDeriv:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
+                    else:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
                 else:
-                    Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
-                    Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
-                    Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                    Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
-                    evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA]
+                    if not computeAnalyticalDeriv:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA]
+                    else:
+                        Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
+                        Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
+                        Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
+                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        evpars = [Mc, eta, iota, chiS, chiA]
                 
                 Ap = Apfun(evpars).T
                 Ac = Acfun(evpars).T
@@ -845,21 +889,247 @@ class GWSignal(object):
                 PsicDeriv = PsicDeriv.transpose(1,2,0)
                 
                 FisherDerivs = ApDeriv*np.exp(1j*Psip) + Ap*np.exp(1j*Psip)*1j*PsipDeriv + AcDeriv*np.exp(1j*Psic) + Ac*np.exp(1j*Psic)*1j*PsicDeriv
-                
-        # We compute the derivative w.r.t. logdL and Phicoal analytically, so split the matrix and insert them
-        #GWstrainUse = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
-        #tmpsplit1, tmpsplit2, _ = np.vsplit(FisherDerivs, np.array([inputNumdL, nParams-2]))
-        #logdLderiv = -onp.asarray(GWstrainUse(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda)).T
-        #Phicoalderiv = logdLderiv*1j
-        #FisherDerivs = np.vstack((tmpsplit1, logdLderiv[onp.newaxis,:], tmpsplit2, Phicoalderiv[onp.newaxis,:]))
+        if computeAnalyticalDeriv:
+            # We compute the derivative w.r.t. dL, theta, phi, psi, tcoal and Phicoal analytically, so have to split the matrix and insert them
+            NAnalyticalDerivs = 6
+            dL_deriv, phi_deriv, theta_deriv, psi_deriv, tc_deriv, Phicoal_deriv = self._AnalyticalDerivatives(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2)
+            tmpsplit1, tmpsplit2, tmpsplit3, _ = onp.vsplit(FisherDerivs, onp.array([inputNumdL, inputNumiota, nParams-NAnalyticalDerivs]))
+            FisherDerivs = np.vstack((tmpsplit1, np.asarray(dL_deriv).T[np.newaxis,:], np.asarray(theta_deriv).T[np.newaxis,:], np.asarray(phi_deriv).T[np.newaxis,:], tmpsplit2, np.asarray(psi_deriv).T[np.newaxis,:], np.asarray(tc_deriv).T[np.newaxis,:], np.asarray(Phicoal_deriv).T[np.newaxis,:], tmpsplit3))
         # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
-        tcelem = self.wf_model.ParNums['tcoal']
-        #FisherDerivs = onp.array(FisherDerivs)
-        FisherDerivs.at[tcelem,:,:].set( FisherDerivs[tcelem,:,:]/(3600.*24.))
+        #tcelem = self.wf_model.ParNums['tcoal']
+        #FisherDerivs.at[tcelem,:,:].set(FisherDerivs[tcelem,:,:]/(3600.*24.))
         
         #print('Shape of FisherDerivs: %s' %str(FisherDerivs.shape))
         
         return FisherDerivs
+        
+    def _AnalyticalDerivatives(self, f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False):
+        
+        if use_chi1chi2:
+            # Interpret chiS as chi1z and chiA as chi2z
+            chi1z = chiS
+            chi2z = chiA
+        else:
+            chi1z = chiS + chiA
+            chi2z = chiS - chiA
+        if use_m1m2:
+            # Interpret Mc as m1 and eta as m2
+            McUse  = ((Mc*eta)**(3./5.))/((Mc+eta)**(1./5.))
+            etaUse = (Mc*eta)/((Mc+eta)**(2.))
+        else:
+            McUse  = Mc
+            etaUse = eta
+        
+        evParams = {'Mc':McUse, 'dL':dL, 'theta':theta, 'phi':phi, 'iota':iota, 'psi':psi, 'tcoal':tcoal, 'eta':etaUse, 'Phicoal':Phicoal, 'chi1z':chi1z, 'chi2z':chi2z}
+        
+        if self.wf_model.is_tidal:
+            Lambda1, Lambda2 = utils.Lam12_from_Lamt_delLam(LambdaTilde, deltaLambda, etaUse)
+            
+            evParams['Lambda1'] = Lambda1
+            evParams['Lambda2'] = Lambda2
+        
+        if not self.wf_model.is_HigherModes:
+            wfPhiGw = self.wf_model.Phi(f, **evParams)
+            wfAmpl  = self.wf_model.Ampl(f, **evParams)
+            wfhp, wfhc = wfAmpl*np.exp(1j*wfPhiGw)*0.5*(1.+(np.cos(iota))**2), 1j*wfAmpl*np.exp(1j*wfPhiGw)*np.cos(iota)
+        else:
+            # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
+            wfhp, wfhc = self.wf_model.hphc(f, **evParams)
+        
+        if self.useEarthMotion:
+            # Compute Doppler contribution
+            tnoloc = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
+            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc, f) # in seconds
+            t = tnoloc + tmpDeltLoc/(3600.*24.)
+            phiD = self._phiDoppler(theta, phi, t, f)
+            #phiP is necessary if we write the signal as A*exp(i Psi) with A = sqrt(Ap^2 + Ac^2), uncomment if necessary
+            #phiP = self._phiPhase(theta, phi, t, iota, psi)
+        else:
+            phiD = Mc*0.
+            #phiP = Mc*0.
+            if self.noMotion:
+                tnoloc=0
+            else:
+                tnoloc = tcoal
+            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc, f) # in seconds
+            t = tnoloc + tmpDeltLoc/(3600.*24.)
+        
+        phiL = (2.*np.pi*f)*tmpDeltLoc
+        
+        rot_rad = rot*np.pi/180.
+        
+        def afun(ra, dec, t, rot):
+            phir = self.det_long_rad
+            a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(3.-np.cos(2.*dec))*np.cos(2.*(ra - phir - 2.*np.pi*t))
+            a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-np.cos(2.*dec))*np.sin(2.*(ra - phir - 2.*np.pi*t))
+            a3 = 0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)
+            a4 = 0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)
+            a5 = 3.*0.25*np.sin(2*(self.det_xax_rad+rot))*(np.cos(self.det_lat_rad)*np.cos(dec))**2.
+            return a1 - a2 + a3 - a4 + a5
+        
+        def bfun(ra, dec, t, rot):
+            phir = self.det_long_rad
+            b1 = np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.sin(dec)*np.cos(2.*(ra - phir - 2.*np.pi*t))
+            b2 = 0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.sin(dec)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+            b3 = np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.cos(dec)*np.cos(ra - phir - 2.*np.pi*t)
+            b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.cos(dec)*np.sin(ra - phir - 2.*np.pi*t)
+            
+            return b1 + b2 + b3 + b4
+        
+        ras, decs = self._ra_dec_from_th_phi(theta, phi)
+
+        afac = afun(ras, decs, t, rot_rad)
+        bfac = bfun(ras, decs, t, rot_rad)
+        
+        Fp = np.sin(self.angbtwArms)*(afac*np.cos(2.*psi) + bfac*np.sin(2*psi))
+        Fc = np.sin(self.angbtwArms)*(bfac*np.cos(2.*psi) - afac*np.sin(2*psi))
+        
+        hp, hc = wfhp*Fp*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL)), wfhc*Fc*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+        
+        def psi_par_deriv():
+            
+            Fp_psider = 2*np.sin(self.angbtwArms)*(-afac*np.sin(2.*psi) + bfac*np.cos(2*psi))
+            Fc_psider = 2*np.sin(self.angbtwArms)*(-bfac*np.sin(2.*psi) - afac*np.cos(2*psi))
+            
+            return wfhp*Fp_psider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL)) + wfhc*Fc_psider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+        
+        def phi_par_deriv():
+            
+            def Delt_loc_phider(ra, dec, t):
+                
+                comp1 = -np.cos(dec)*np.sin(ra)*np.cos(self.det_lat_rad)*np.cos(self.det_long_rad + 2.*np.pi*t)
+                comp2 = np.cos(dec)*np.cos(ra)*np.cos(self.det_lat_rad)*np.sin(self.det_long_rad + 2.*np.pi*t)
+                
+                Delt_phider = - glob.REarth*(comp1+comp2)/glob.clight
+                
+                return Delt_phider/(3600.*24.) # in days
+    
+            def afun_phider(ra, dec, t, rot):
+                phir = self.det_long_rad
+                a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(3.-np.cos(2.*dec))*(-2.)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-np.cos(2.*dec))*2.*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                a3 = -0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)
+                a4 = 0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)
+
+                return a1 - a2 + a3 - a4
+            
+            def bfun_phider(ra, dec, t, rot):
+                phir = self.det_long_rad
+    
+                b1 = np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.sin(dec)*(-2.)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                b2 = 0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.sin(dec)*2.*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                b3 = -np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.cos(dec)*np.sin(ra - phir - 2.*np.pi*t)
+                b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.cos(dec)*np.cos(ra - phir - 2.*np.pi*t)
+                
+                return b1 + b2 + b3 + b4
+            locDt_phider = Delt_loc_phider(ras, decs, tnoloc)
+            afac_phider = afun_phider(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_phider)
+            bfac_phider = bfun_phider(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_phider)
+            
+            Fp_phider = np.sin(self.angbtwArms)*(afac_phider*np.cos(2.*psi) + bfac_phider*np.sin(2*psi))
+            Fc_phider = np.sin(self.angbtwArms)*(bfac_phider*np.cos(2.*psi) - afac_phider*np.sin(2*psi))
+            
+            ampP_phider = wfhp*Fp_phider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+            ampC_phider = wfhc*Fc_phider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+        
+            phiD_phideriv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.-2.*np.pi*locDt_phider)
+            phiL_phideriv = 2.*np.pi*f*locDt_phider
+            
+            return ampP_phider + 1j*(phiD_phideriv + phiL_phideriv)*hp + ampC_phider + 1j*(phiD_phideriv + phiL_phideriv)*hc
+        
+        def theta_par_deriv():
+            def Delt_loc_thder(ra, dec, t):
+                
+                comp1 = np.sin(dec)*np.cos(ra)*np.cos(self.det_lat_rad)*np.cos(self.det_long_rad + 2.*np.pi*t)
+                comp2 = np.sin(dec)*np.sin(ra)*np.cos(self.det_lat_rad)*np.sin(self.det_long_rad + 2.*np.pi*t)
+                comp3 = -np.cos(dec)*np.sin(self.det_lat_rad)
+                
+                Delt_thder = - glob.REarth*(comp1+comp2+comp3)/glob.clight
+                
+                return Delt_thder/(3600.*24.) # in days
+            
+            def afun_thder(ra, dec, t, rot):
+                phir = self.det_long_rad
+                a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(3.-2.*np.sin(2.*dec))*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-2.*np.sin(2.*dec))*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                a3 = -0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*2.*np.cos(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)
+                a4 = -0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*2.*np.cos(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)
+                a5 = 2.*3.*0.25*np.sin(2*(self.det_xax_rad+rot))*((np.cos(self.det_lat_rad))**2)*np.cos(dec)*np.sin(dec)
+                return a1 - a2 + a3 - a4 + a5
+            
+            def bfun_thder(ra, dec, t, rot):
+                phir = self.det_long_rad
+                b1 = -np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.cos(dec)*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                b2 = -0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.cos(dec)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                b3 = np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(dec)*np.cos(ra - phir - 2.*np.pi*t)
+                b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(dec)*np.sin(ra - phir - 2.*np.pi*t)
+                
+                return b1 + b2 + b3 + b4
+            
+            locDt_thder = Delt_loc_thder(ras, decs, tnoloc)
+            afac_thder = afun_thder(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_thder)
+            bfac_thder = bfun_thder(ras, decs, t, rot_rad)*(1.-2.*np.pi*locDt_thder)
+            
+            Fp_thder = np.sin(self.angbtwArms)*(afac_thder*np.cos(2.*psi) + bfac_thder*np.sin(2*psi))
+            Fc_thder = np.sin(self.angbtwArms)*(bfac_thder*np.cos(2.*psi) - afac_thder*np.sin(2*psi))
+            
+            ampP_thder = wfhp*Fp_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+            ampC_thder = wfhc*Fc_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+            phiD_thderiv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.cos(theta)*np.cos(2.*np.pi*t - phi) - 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*2.*np.pi*locDt_thder
+            phiL_thderiv = 2.*np.pi*f*locDt_thder
+            
+            return ampP_thder + 1j*(phiD_thderiv + phiL_thderiv)*hp + ampC_thder + 1j*(phiD_thderiv + phiL_thderiv)*hc
+        
+        def tcoal_par_deriv():
+            
+            def Delt_loc_tcder(ra, dec, t):
+    
+                comp1 = -np.cos(decs)*np.cos(ras)*np.cos(self.det_lat_rad)*np.sin(self.det_long_rad + 2.*np.pi*t)
+                comp2 = np.cos(decs)*np.sin(ras)*np.cos(self.det_lat_rad)*np.cos(self.det_long_rad + 2.*np.pi*t)
+                
+                Delt_tcder = - 2.*np.pi*glob.REarth*(comp1+comp2)/glob.clight
+                
+                return Delt_tcder/(3600.*24.) # in days
+    
+            def afun_tcder(ra, dec, t, rot):
+                phir = self.det_long_rad
+                a1 = 0.0625*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*(3.-np.cos(2.*dec))*(-2.)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                a2 = 0.25*np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*(3.-np.cos(2.*dec))*2.*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                a3 = -0.25*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.sin(2.*dec)*np.sin(ra - phir - 2.*np.pi*t)
+                a4 = 0.5*np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.sin(2.*dec)*np.cos(ra - phir - 2.*np.pi*t)
+
+                return a1 - a2 + a3 - a4
+            
+            def bfun_tcder(ra, dec, t, rot):
+                phir = self.det_long_rad
+                b1 = np.cos(2*(self.det_xax_rad+rot))*np.sin(self.det_lat_rad)*np.sin(dec)*(-2.)*np.sin(2.*(ra - phir - 2.*np.pi*t))
+                b2 = 0.25*np.sin(2*(self.det_xax_rad+rot))*(3.-np.cos(2.*self.det_lat_rad))*np.sin(dec)*2.*np.cos(2.*(ra - phir - 2.*np.pi*t))
+                b3 = -np.cos(2*(self.det_xax_rad+rot))*np.cos(self.det_lat_rad)*np.cos(dec)*np.sin(ra - phir - 2.*np.pi*t)
+                b4 = 0.5*np.sin(2*(self.det_xax_rad+rot))*np.sin(2.*self.det_lat_rad)*np.cos(dec)*np.cos(ra - phir - 2.*np.pi*t)
+                
+                return b1 + b2 + b3 + b4
+            locDt_tcder = Delt_loc_tcder(ras, decs, tnoloc)
+            afac_tcder = -2.*np.pi*afun_tcder(ras, decs, t, rot_rad)*(1.+locDt_tcder)
+            bfac_tcder = -2.*np.pi*bfun_tcder(ras, decs, t, rot_rad)*(1.+locDt_tcder)
+            
+            Fp_tcder = np.sin(self.angbtwArms)*(afac_tcder*np.cos(2.*psi) + bfac_tcder*np.sin(2*psi))
+            Fc_tcder = np.sin(self.angbtwArms)*(bfac_tcder*np.cos(2.*psi) - afac_tcder*np.sin(2*psi))
+            
+            ampP_tcder = wfhp*Fp_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+            ampC_tcder = wfhc*Fc_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
+            phiD_tcderiv = -4.*np.pi*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.+locDt_tcder)
+            phiL_tcderiv = 2.*np.pi*f*locDt_tcder
+
+            return ampP_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hp + ampC_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hc
+        
+        dL_deriv = -(hp+hc)/dL
+        Phicoal_deriv = -1j*(hp+hc)
+        psi_deriv = psi_par_deriv()
+        phi_deriv = phi_par_deriv()
+        theta_deriv = theta_par_deriv()
+        tc_deriv = tcoal_par_deriv()
+        
+        return dL_deriv, phi_deriv, theta_deriv, psi_deriv, tc_deriv, Phicoal_deriv
         
     def SNRFastInsp(self, evParams, checkInterp=False):
         # This module allows to compute the inspiral SNR taking into account Earth rotation, without the need 
