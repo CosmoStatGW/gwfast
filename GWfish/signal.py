@@ -13,7 +13,7 @@ config.update("jax_enable_x64", True)
 
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'       
 os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
-os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
+#os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
 
 # We use both the original numpy, denoted as onp, and the JAX implementation of numpy, denoted as np
 import numpy as onp
@@ -53,7 +53,7 @@ class GWSignal(object):
                 verbose=True,
                 useEarthMotion = False,
                 noMotion = False, # use only for checks
-                fmin=5, fmax=None,
+                fmin=2., fmax=None,
                 IntTablePath=None,
                 DutyFactor=None,
                 compute2arms=True,
@@ -559,9 +559,9 @@ class GWSignal(object):
         return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
     
     
-    def FisherMatr(self, evParams, res=None, df=2**-4, spacing='geom', 
-                   use_m1m2=False, use_chi1chi2=False, 
-                   computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=False,
+    def FisherMatr(self, evParams, res=1000, df=None, spacing='geom', 
+                   use_m1m2=False, use_chi1chi2=True, 
+                   computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True,
                    **kwargs):
                    #stepNDT=1e-9,
                    #parallel=False):

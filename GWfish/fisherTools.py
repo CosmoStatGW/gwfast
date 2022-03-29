@@ -15,174 +15,142 @@ import numpy as onp
 import copy
 import GWfish.fisherUtils as utils
 import mpmath
+import scipy
 
 ##############################################################################
 # INVERSION AND SANITY CHECKS
 ##############################################################################
-
-
-def CovMatr(FisherM, evParams, 
-                invMethod='inv', condNumbMax=1.0e15, 
-                return_inv_err=False, 
-                return_dL_derivs = True, 
-                use_sin_iota=False,
-                use_reweighting = 'diag', 
-                use_mpmath=False):
-        
+def CovMatr(FisherMatrix, evParams, 
+            invMethodIn='cho', 
+            condNumbMax=1e50, 
+            evals_trunc=1e-15, 
+            truncate=False, verbose=False):
     
-        
         utils.check_evparams(evParams)
     
-        FisherM_or = None
+        FisherMatrix = FisherMatrix.astype('float128')
+
+        ws_dL= onp.array([onp.identity(FisherMatrix.shape[0]) for _ in range(FisherMatrix.shape[-1])])
+        ws_dL[:, 2,2] = evParams['dL']
+        FisherM = (ws_dL@((FisherMatrix.T@ws_dL).T).T).T
+
+
+        ws_mc= onp.array([onp.identity(FisherMatrix.shape[0]) for _ in range(FisherMatrix.shape[-1])])
+        ws_mc[:, 0,0] = evParams['Mc']
+        FisherM = (ws_mc@((FisherM.T@ws_mc).T).T).T
+
+        ws_i= onp.array([onp.identity(FisherMatrix.shape[0]) for _ in range(FisherMatrix.shape[-1])])
+        ws_i[:, 5,5] = 1/onp.cos(evParams['iota'])
+        FisherM = (ws_i@((FisherM.T@ws_i).T).T).T
+
+        # sin(delta)
+        ws_del= onp.array([onp.identity(FisherMatrix.shape[0]) for _ in range(FisherMatrix.shape[-1])])
+        ws_del[:, 3,3] = -1/onp.cos(evParams['theta'])
+        FisherM = (ws_del@((FisherM.T@ws_del).T).T).T
         
-        #if return_dL_derivs:
-        #    FisherM_or = copy.deepcopy(FisherM)
-            #ws_dL = np.array([np.diag(ev['dL']) for ev in evParams])
-        #    ws_dL= np.array([np.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
-        #    ws_dL = ws_dL.at[:, 1,1].set(evParams['dL'])
-        #    FisherM = (ws_dL@((FisherM.T@ws_dL).T).T).T
-        
-        if use_sin_iota:
-            #if FisherM_or is None:
-            FisherM_or = copy.deepcopy(FisherM)
-            #ws_i = np.array([np.diag(np.cos(ev['iota'])) for ev in evParams])
-            ws_i= onp.array([onp.identity(FisherM.shape[0]) for _ in range(FisherM.shape[-1])])
-            #ws_i = ws_i.at[:, 4,4].set(-1/np.sin(evParams['iota']))
-            ws_i[:, 4,4] = -1/onp.sin(evParams['iota'])
-            FisherM = (ws_i@((FisherM.T@ws_i).T).T).T
-        
-        if use_reweighting=='diag':
+        CovMatr = onp.zeros(FisherMatrix.shape).astype('float128')
+        cho_failed = 0
+        for k in range(FisherM.shape[-1]): 
             
-            if use_mpmath:
-                if FisherM_or is None:
-                    FisherM_or = copy.deepcopy(FisherM.astype('float128'))
-                FisherM_tmp = onp.zeros(FisherM.shape).astype('float128')
-                allws=[]
-                for k in range(FisherM.shape[-1]):
-                    ff = mpmath.matrix(FisherM[:,:,k].astype('float128'))
-                    ws = mpmath.diag( [ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[0]) ])
-                    FisherM_ = ws*ff*ws
-                    FisherM_tmp[:,:,k] = onp.array(FisherM_.tolist(), dtype=onp.float128)
-                    allws.append(ws)
-                FisherM = FisherM_tmp
+            E, _ = scipy.linalg.eigh(FisherMatrix[:, :, k])
+            if onp.any(E<0) and verbose:
+                print('Matrix is not positive definite!')
 
-            else:    
-                if FisherM_or is None:
-                    FisherM_or = copy.deepcopy(FisherM)
-                ws_ =  onp.diagonal(FisherM) #np.max(FisherM, axis=(0)).T
-                ws = onp.array([onp.diag(1/onp.sqrt(w)) for w in ws_]) #np.array([np.diag(1/w) for w in ws_])
-                FisherM = (ws@((FisherM.T@ws).T).T).T #(FisherM.T@ws).T
-        elif use_reweighting=='max':
-            if FisherM_or is None:
-                FisherM_or = copy.deepcopy(FisherM)
+            cond_or = onp.max(E)/onp.min(E)
+            if verbose:
+                print('Condition of the original matrix: %s' %cond_or)
+        
+
+            ff = mpmath.matrix( FisherM[:, :, k].astype('float128'))
+            ws =  mpmath.diag([ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[-2]) ])
+            FisherM_ = ws*ff*ws
+
+            E, ER = mpmath.eigh(ff)
+            E = onp.array(E.tolist(), dtype=onp.float128)
+
+            if onp.any(E<0) and verbose:
+                print('Matrix is not positive definite!')
+
+            cond = onp.max(E)/onp.min(E)
+            if verbose:
+                print('Condition of matrix in logdL, logMc, cosiota: %s' %cond)
+
+            EE, ER = mpmath.eigh(FisherM_)
+            E = onp.array(EE.tolist(), dtype=onp.float128)
+            cond = onp.max(E)/onp.min(E)
+            if verbose:
+                print('Condition of the new matrix: %s' %cond)
             
-            ws_ =  onp.max(FisherM, axis=(0)).T
-            ws = onp.array([onp.diag(1/w) for w in ws_])
-            FisherM = (FisherM.T@ws).T
-        else: 
-            FisherM_or = FisherM
-        
-        evals, evecs, condNumber = CheckFisher(FisherM, condNumbMax=condNumbMax, use_mpmath=use_mpmath)
-        CovMatr = inverse_vect(FisherM, invMethod=invMethod)        
-        #CovMatr[:, :, onp.squeeze(onp.where(condNumber>condNumbMax))] = onp.full(CovMatr[:, :, onp.squeeze(onp.where(condNumber>condNumbMax))].shape, onp.nan)
-        
-
-        if use_reweighting=='diag':
-            # Restore weights
-            if use_mpmath:
-                CovMatr_tmp = onp.zeros(CovMatr.shape).astype('float128')
-                for k in range(FisherM.shape[-1]):
-                    cc = mpmath.matrix(CovMatr[:,:,k].astype('float128'))
-                    #ws = [ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[-2]) ]
-                    CovMatr_ = allws[k]*cc*allws[k]
-                    CovMatr_tmp[:,:,k] = onp.array(CovMatr_.tolist(), dtype=onp.float128)
-                CovMatr = CovMatr_tmp
-            else:
-                CovMatr = (ws@((CovMatr.T@ws).T).T).T #(ws@CovMatr.T).T
-        elif use_reweighting=='max':
-            CovMatr = (ws@CovMatr.T).T
-        
-        if use_sin_iota:
-            CovMatr = (ws_i@((CovMatr.T@ws_i).T).T).T
-        
-        
-        
-        eps=None
-        #maxnorm=None
-        if return_inv_err:
-               eps =  compute_inversion_error(FisherM_or.astype('float128'), CovMatr.astype('float128'))
-
-            
-        if return_dL_derivs:
-            print('Switching from derivatives wrt logdL to derivatives wrt dL...')
-            #CovMatr = (ws_dL@((CovMatr.T@ws_dL).T).T).T
-            CovMatr = log_dL_to_dL_derivative_cov(CovMatr, {'dL':2}, evParams)
-            
-        
-        return CovMatr, eps, 
+            invMethod = invMethodIn
+            if onp.any(E<0):
+                if verbose:
+                    print('Matrix is not positive definite!')
+                if invMethodIn=='cho':
+                    cho_failed+=1
+                    invMethod='svd'
+                    if verbose:
+                        print('Cholesky decomposition not usable. Using method %s' %invMethod)
 
 
+            if invMethod=='inv':
+                    cc = FisherM_**-1
+                    cc = (cc+cc.T)/2
+            elif invMethod=='cho':
+                    c = (mpmath.cholesky(FisherM_))**-1 
+                    cc = c.T*c
+            elif invMethod=='svd':
+                    U, S, V = mpmath.svd_r(FisherM_)
+                    if ((truncate) and (onp.abs(cond_or)>condNumbMax)):
+                        if verbose:
+                            print('Truncating singular values below %s' %evals_trunc)
+                        S = onp.array(S.tolist(), dtype=onp.float128)
+                        maxev = onp.max(S)
+                        Sinv = mpmath.matrix(onp.array([1/s if onp.abs(s/maxev)>evals_trunc else 0 for s in S ]).astype('float128'))
+                        SinvVec = onp.array(Sinv.tolist())
+                        if verbose:
+                            print('%s singular values truncated' %SinvVec[SinvVec==0].shape)
+                    else:
+                        Sinv = mpmath.matrix(onp.array([1/s for s in S ]).astype('float128'))
+                    cc=V.T*mpmath.diag([s for s in Sinv])*U.T
+            elif invMethod=='lu':
+                    P, L, U = mpmath.lu(FisherM_)
+                    ll = P*L
+                    llinv = ll**-1
+                    uinv=U**-1
+                    cc = uinv*llinv
+            elif invMethod=='evals':
+                maxe = onp.max(E)
+                Lamb = mpmath.matrix(onp.array([e if onp.abs(e/maxe)>evals_trunc else evals_trunc for e in E ]).astype('float128'))
+                Lamb = onp.array(Lamb.tolist())
+                LambInv = mpmath.matrix(onp.array([1/e if onp.abs(e/maxe)>evals_trunc else 1/evals_trunc for e in E ]).astype('float128'))
+                if verbose:
+                    print('%s eigenvalues truncated' %Lamb[Lamb==evals_trunc].shape)
+                LambInv = mpmath.diag(LambInv)
+                cc = ER*LambInv*ER.T
+                cc = (cc+cc.T)/2
 
-def CovMatr_mpmath(FisherM, evParams, 
-                invMethod='inv', eps_th=1e-05):
-    
-    eps=[]
-    CovMatr=[]
-    for k in range(FisherM.shape[-1]):   
-        ff = mpmath.matrix( FisherM[:,:,k].astype('float128'))
-        ws = mpmath.diag([ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[-2]) ])
-        FisherM_ = ws*ff*ws
+            CovMatr_ = ws*cc*ws
+
+            CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=onp.float128)
+            if verbose:
+                print()
         
-        if invMethod=='inv':
-            cc = FisherM_**-1
-        elif invMethod=='cho':
-            c = (mpmath.cholesky(FisherM_))**-1 #np.linalg.inv(np.linalg.cholesky(A[:, :, k]))
-            cc = c.T*c
-        elif invMethod=='svd':
-            U, S, V = mpmath.svd(FisherM_)
-            cc=V.T*mpmath.diag([1/s for s in S])*U.T
-            #onp.dot(v.transpose(),onp.dot(onp.diag(s**-1),u.transpose()))
-        elif invMethod=='lu':
-            P, L, U = mpmath.lu(FisherM_)
-            ll = P*L
-            llinv = ll**-1
-            uinv=U**-1
-            cc = uinv*llinv
-            
-        CovMatr_ = ws*cc*ws
-        eps_ = max( ff*CovMatr_-mpmath.diag( [mpmath.ctx_mp_python.mpf(1.) for i in range(FisherM.shape[0])]))
+        CovMatr = (ws_i@((CovMatr.T@ws_i).T).T).T
+        CovMatr = (ws_mc@((CovMatr.T@ws_mc).T).T).T
+        CovMatr = (ws_dL@((CovMatr.T@ws_dL).T).T).T
+        CovMatr = (ws_del@((CovMatr.T@ws_del).T).T).T
+
         
-        if eps_>eps_th:
-            print('eps=%s for i=%s. Trying to regularize eigenvalues...' %(eps_, k))
-            wp = onp.geomspace(eps_th, 1e-01, int(onp.log10(0.1/eps_th)+1) )
-            eps_min=eps_
-            wp_min = 0
-            found_any=False
-            for i,wp_ in enumerate(wp):
-                E, ER = mpmath.eig(ff)
-                E1 = [1./onp.abs(e) if (onp.abs(e)>wp_ ) else mpmath.ctx_mp_python.mpf(1./onp.abs(wp_)) for e in E]
-                Eem = mpmath.diag(E1)
-                cc = ER*(Eem)*ER.T
-                #U, S, V = mpmath.svd(FisherM_)
-                #S1 = [1./onp.abs(e) if (onp.abs(e)>wp_ ) else mpmath.ctx_mp_python.mpf(1./onp.abs(wp_)) for e in S]
-                #cc=V.T*mpmath.diag([ss for ss in S1])*U.T
-                
-                              
-                eps_ = max( ff*cc-mpmath.diag( [mpmath.ctx_mp_python.mpf(1.) for i in range(FisherM.shape[0])]))
-                if eps_min>eps_:
-                    eps_min = eps_
-                    wp_min = wp_
-                    CovMatr_ = cc
-                    print('New min at %s: %s '%(wp_min, eps_min))
-                    found_any=True
-            if found_any:
-                print('Min error:%s for truncation at %s' %(eps_min, wp_min) )
-            else:
-                print('Truncation not succesful.')
-            eps_ = eps_min
-        eps.append(eps_)
-        CovMatr.append(CovMatr_)
-    return CovMatr, eps,
+        eps = onp.array([ onp.max( onp.abs(CovMatr[:, :, i]@FisherMatrix[:, :, i]-onp.eye(FisherMatrix.shape[0]))) for i in range(FisherMatrix.shape[-1]) ])
+
+
+        if verbose:
+                print('Error with %s: %s\n' %(invMethod, eps))
+        print(' Inversion error with method %s: min=%s, max=%s, mean=%s, std=%s ' %(invMethodIn, onp.min(eps), onp.max(eps), onp.mean(eps), onp.std(eps)) )
+        print('Method %s not possible on %s non-positive definite matrices, %s was used in those cases. ' %(invMethodIn, cho_failed, 'svd'))
+        return CovMatr, eps
+
+
 
 
     
@@ -195,21 +163,6 @@ def compute_inversion_error(Fisher, Cov):
     print('Inversion error (max): %s ' %str(maxnorm))
     return maxnorm#, maxnorm
 
-def compute_inversion_error_mpmath(Fishers, Covs):
-    eps=[]
-    for i, Fisher in enumerate(Fishers):
-        #f1 =  mpmath.matrix( Fisher[:,:,k].astype('float128'))
-        #c1 =  mpmath.matrix( Cov[:,:,k].astype('float128'))
-        diff_ = max(Fisher*Covs[i]-mpmath.diag( [mpmath.ctx_mp_python.mpf(1.) for i in range(len(Fisher))]))
-        eps.append(diff_)
-    
-    #diff = onp.array([Cov[:, :, i]@Fisher[:, :, i]-onp.identity(Cov.shape[0]) for i in range(Fisher.shape[-1])])
-    #eps = [ onp.linalg.norm(mm, ord=onp.inf) for mm in diff]
-    #eps = [ max(mm) for mm in diff]
-    #eps = [ onp.linalg.norm(Cov[:, :, i]@Fisher[:, :, i]-onp.identity(Cov.shape[0]), ord=onp.inf) for i in range(Fisher.shape[-1])]
-    print('Inversion error (max): %s ' %str(eps))
-    #print('Inversion error (max): %s ' %str(maxnorm))
-    return eps#, maxnorm
 
 
 def inverse_vect(A, invMethod, wp=None):
