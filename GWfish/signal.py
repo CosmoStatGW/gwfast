@@ -56,7 +56,8 @@ class GWSignal(object):
                 fmin=5, fmax=None,
                 IntTablePath=None,
                 DutyFactor=None,
-                compute2arms=True):
+                compute2arms=True,
+                jitCompileDerivs=False):
         
         if (detector_shape!='L') and (detector_shape!='T'):
             raise ValueError('Enter valid detector configuration')
@@ -120,7 +121,7 @@ class GWSignal(object):
         
         onp.random.seed(None)
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
-
+        self.jitCompileDerivs = jitCompileDerivs
         self._init_jax()
         
         
@@ -133,8 +134,10 @@ class GWSignal(object):
         print('Jax local device count: %s' %str(jax.local_device_count()))
         print('Jax  device count: %s' %str(jax.device_count()))
         
-        #self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
-        self._SignalDerivatives_jit = self._SignalDerivatives
+        if self.jitCompileDerivs:
+            self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
+        else:
+            self._SignalDerivatives_use = self._SignalDerivatives
         
         inj_params_init = {'Mc': np.array([77.23905294]),
                            'Phicoal': np.array([3.28297867]),
@@ -162,14 +165,15 @@ class GWSignal(object):
         #McOr, dL, theta, phi = inj_params_init['Mc'].astype('complex128'), inj_params_init['dL'].astype('complex128'), inj_params_init['theta'].astype('complex128'), inj_params_init['phi'].astype('complex128')
         #iota, psi, tcoal, etaOr, Phicoal = inj_params_init['iota'].astype('complex128'), inj_params_init['psi'].astype('complex128'), inj_params_init['tcoal'].astype('complex128'), inj_params_init['eta'].astype('complex128'), inj_params_init['Phicoal'].astype('complex128')
         #chiS, chiA = inj_params_init['chis'].astype('complex128'), inj_params_init['chia'].astype('complex128')
-        #_ = self._SignalDerivatives_jit(np.array([[50., 70]]).astype('complex128').T, McOr, etaOr, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, np.array([0.]).astype('complex128'), np.array([0.]).astype('complex128'), )
+        #_ = self._SignalDerivatives_use(np.array([[50., 70]]).astype('complex128').T, McOr, etaOr, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, np.array([0.]).astype('complex128'), np.array([0.]).astype('complex128'), )
         print('Done.')
         self.verbose = verboseOr
         self.detector_shape = detector_shapeOr
      
     def _clear_cache(self):
-        print('Clearing cache...')
-        self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
+        if self.jitCompileDerivs:
+            print('Clearing cache...')
+            self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
      
     def _update_seed(self,):
         onp.random.seed(None)
@@ -631,7 +635,7 @@ class GWSignal(object):
         
         if self.detector_shape=='L': 
             # Compute derivatives
-            FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+            FisherDerivs = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
             # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
             FisherDerivs = onp.array(FisherDerivs)
             FisherDerivs[tcelem,:,:] /= (3600.*24.)
@@ -654,7 +658,7 @@ class GWSignal(object):
             if not self.compute2arms:
                 for i in range(3):
                     # Change rot and compute derivatives
-                    FisherDerivs = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                    FisherDerivs = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=i*60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
                     # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
                     FisherDerivs = onp.array(FisherDerivs)
                     FisherDerivs[tcelem,:,:] /= (3600.*24.)
@@ -679,12 +683,10 @@ class GWSignal(object):
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
             
                 # Compute derivatives
-                FisherDerivs1 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                FisherDerivs1 = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
                 # Change the units of the tcoal derivative from days to seconds (this improves conditioning)
                 FisherDerivs1 = onp.array(FisherDerivs1)
                 FisherDerivs1[tcelem,:,:] /= (3600.*24.)
-                #print('Clearing cache...')
-                #self._SignalDerivatives_jit = jax.jit(self._SignalDerivatives, static_argnums=(14,15,16,17))
 
                 FisherIntegrands = (onp.conjugate(FisherDerivs1[:,:,onp.newaxis,:])*FisherDerivs1.transpose(1,0,2))
                     
@@ -704,7 +706,7 @@ class GWSignal(object):
                 Fisher += tmpFisher
                 
                 
-                FisherDerivs2 = self._SignalDerivatives_jit(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
+                FisherDerivs2 = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, computeRealDeriv=computeRealDeriv, computeAnalyticalDeriv=computeAnalyticalDeriv, **kwargs)
                 FisherDerivs2 = onp.array(FisherDerivs2)
                 FisherDerivs2[tcelem,:,:] /= (3600.*24.)
                 FisherIntegrands = (onp.conjugate(FisherDerivs2[:,:,onp.newaxis,:])*FisherDerivs2.transpose(1,0,2))
@@ -829,26 +831,27 @@ class GWSignal(object):
                 Apfun = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                 Acfun = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                 Psipfun = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                Psicfun = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                #Psicfun = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                 
                 Ap = Apfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
                 Ac = Acfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
                 Psip = Psipfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
-                Psic = Psicfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
+                #Psic = Psicfun(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda).T
                 
                 
                 dAp = vmap(jacrev(Apfun, argnums=derivargs))
                 dAc = vmap(jacrev(Acfun, argnums=derivargs))
                 dPsip = vmap(jacrev(Psipfun, argnums=derivargs))
-                dPsic = vmap(jacrev(Psicfun, argnums=derivargs))
+                #dPsic = vmap(jacrev(Psicfun, argnums=derivargs))
                
                 
                 ApDeriv = np.asarray(dAp(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
                 AcDeriv = np.asarray(dAc(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
                 PsipDeriv = np.asarray(dPsip(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
-                PsicDeriv = np.asarray(dPsic(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
+                #PsicDeriv = np.asarray(dPsic(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda))
                 
-                FisherDerivs = ApDeriv*np.exp(1j*Psip) + Ap*np.exp(1j*Psip)*1j*PsipDeriv + AcDeriv*np.exp(1j*Psic) + Ac*np.exp(1j*Psic)*1j*PsicDeriv
+                #FisherDerivs = ApDeriv*np.exp(1j*Psip) + Ap*np.exp(1j*Psip)*1j*PsipDeriv + AcDeriv*np.exp(1j*Psic) + Ac*np.exp(1j*Psic)*1j*PsicDeriv
+                FisherDerivs = (ApDeriv + 1j*AcDeriv + 1j*PsipDeriv*(Ap + 1j*Ac))*np.exp(1j*Psip)
             else:
                 import numdifftools as nd
                 
@@ -857,82 +860,83 @@ class GWSignal(object):
                         Apfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                         Acfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                         Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                         evpars = [Mc, dL, theta, phi, iota, psi, tcoal, Phicoal]
                     else:
                         Apfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                         Acfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                         Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                         evpars = [Mc]
                 elif self.wf_model.is_tidal:
                     if not computeAnalyticalDeriv:
                         Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                         Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                         Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                         evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda]
                     else:
                         if not self.wf_model.is_HigherModes:
                             Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], pars[4], pars[5], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                             Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], pars[4], pars[5], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                             Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], pars[4], pars[5], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                            Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], pars[4], pars[5], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                            #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], pars[4], pars[5], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                             evpars = [Mc, eta, chiS, chiA, LambdaTilde, deltaLambda]
                         else:
                             Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                             Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                             Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                            Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                            #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], pars[5], pars[6], rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                             evpars = [Mc, eta, iota, chiS, chiA, LambdaTilde, deltaLambda]
                 else:
                     if not computeAnalyticalDeriv:
                         Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                         Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                         Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                        Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                        #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                         evpars = [Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA]
                     else:
                         if not self.wf_model.is_HigherModes:
                             Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                             Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                             Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                            Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                            #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, iota, psi, tcoal, Phicoal, pars[2], pars[3], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                             evpars = [Mc, eta, chiS, chiA]
                         else:
                             Apfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ap')
                             Acfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Ac')
                             Psipfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psip')
-                            Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
+                            #Psicfun = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, return_single_comp='Psic')
                             evpars = [Mc, eta, iota, chiS, chiA]
                 
                 Ap = Apfun(evpars).T
                 Ac = Acfun(evpars).T
                 Psip = Psipfun(evpars).T
-                Psic = Psicfun(evpars).T
+                #Psic = Psicfun(evpars).T
                 
                 dAp = nd.Jacobian(Apfun, step=stepNDT, method='central', order=2, n=1)
                 dAc = nd.Jacobian(Acfun, step=stepNDT, method='central', order=2, n=1)
                 dPsip = nd.Jacobian(Psipfun, step=stepNDT, method='central', order=2, n=1)
-                dPsic = nd.Jacobian(Psicfun, step=stepNDT, method='central', order=2, n=1)
+                #dPsic = nd.Jacobian(Psicfun, step=stepNDT, method='central', order=2, n=1)
                 
                 ApDeriv   = np.asarray(dAp(evpars))
                 AcDeriv   = np.asarray(dAc(evpars))
                 PsipDeriv = np.asarray(dPsip(evpars))
-                PsicDeriv = np.asarray(dPsic(evpars))
+                #PsicDeriv = np.asarray(dPsic(evpars))
                 
                 if len(Mc) == 1:
                     ApDeriv   = ApDeriv[:,:,np.newaxis]
                     AcDeriv   = AcDeriv[:,:,np.newaxis]
                     PsipDeriv = PsipDeriv[:,:,np.newaxis]
-                    PsicDeriv = PsicDeriv[:,:,np.newaxis]
+                    #PsicDeriv = PsicDeriv[:,:,np.newaxis]
                     
                 ApDeriv   = ApDeriv.transpose(1,2,0)
                 AcDeriv   = AcDeriv.transpose(1,2,0)
                 PsipDeriv = PsipDeriv.transpose(1,2,0)
-                PsicDeriv = PsicDeriv.transpose(1,2,0)
+                #PsicDeriv = PsicDeriv.transpose(1,2,0)
                 
-                FisherDerivs = ApDeriv*np.exp(1j*Psip) + Ap*np.exp(1j*Psip)*1j*PsipDeriv + AcDeriv*np.exp(1j*Psic) + Ac*np.exp(1j*Psic)*1j*PsicDeriv
+                #FisherDerivs = ApDeriv*np.exp(1j*Psip) + Ap*np.exp(1j*Psip)*1j*PsipDeriv + AcDeriv*np.exp(1j*Psic) + Ac*np.exp(1j*Psic)*1j*PsicDeriv
+                FisherDerivs = (ApDeriv + 1j*AcDeriv + 1j*PsipDeriv*(Ap + 1j*Ac))*np.exp(1j*Psip)
         if computeAnalyticalDeriv:
             # We compute the derivative w.r.t. dL, theta, phi, iota, psi, tcoal and Phicoal analytically, so have to split the matrix and insert them
             if not self.wf_model.is_HigherModes:
