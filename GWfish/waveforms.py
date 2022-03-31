@@ -877,8 +877,35 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        # We cut the waveform at the end of the Planck taper filter
+        M = kwargs['Mc']/(kwargs['eta']**(3./5.))
+        eta = kwargs['eta']
+        Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+        q = 0.5*(1.0 + Seta - 2.0*eta)/eta
+        if 'Lambda1' in kwargs:
+            Lambda1, Lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
+        else:
+            Lambda1, Lambda2 = np.zeros(M.shape), np.zeros(M.shape)
+        Xa = 0.5 * (1.0 + Seta)
+        Xb = 0.5 * (1.0 - Seta)
+        kappa2T = (3.0/13.0) * ((1.0 + 12.0*Xb/Xa)*(Xa**5)*Lambda1 + (1.0 + 12.0*Xa/Xb)*(Xb**5)*Lambda2)
         
-        return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
+        # Compute the dimensionless merger frequency (Mf) for the Planck taper filtering
+        a_0 = 0.3586
+        n_1 = 3.35411203e-2
+        n_2 = 4.31460284e-5
+        d_1 = 7.54224145e-2
+        d_2 = 2.23626859e-4
+        kappa2T2 = kappa2T*kappa2T
+        
+        numPT = 1.0 + n_1*kappa2T + n_2*kappa2T2
+        denPT = 1.0 + d_1*kappa2T + d_2*kappa2T2
+        Q_0 = a_0 / np.sqrt(q)
+        f_merger = Q_0 * (numPT / denPT) / (2.*np.pi)
+        # Terminate the waveform at 1.2 times the merger frequency
+        f_end_taper = 1.2*f_merger
+
+        return f_end_taper/(M*glob.GMsun_over_c3)
     
         
 class IMRPhenomHM(WaveFormModel):

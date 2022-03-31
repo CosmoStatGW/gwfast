@@ -89,7 +89,7 @@ class GWSignal(object):
         self.det_xax_rad  = det_xax*np.pi/180.
         
         self.IntTablePath = IntTablePath
-        #This is the percentage of time each arm of the detector (or the whole detector for an L) is supposed to be operational
+        #This is the percentage of time each arm of the detector (or the whole detector for an L) is supposed to be operational, between 0 and 1, default is None, resulting in a detector always online
         self.DutyFactor = DutyFactor
         
         noise = onp.loadtxt(psd_path, usecols=(0,1))
