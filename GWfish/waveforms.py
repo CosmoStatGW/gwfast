@@ -829,8 +829,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         
         # Now compute tha Planck taper series
         
-        planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 1e-50, 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.) + 1e-50))
-        #planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 0., 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.)))
+        planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 0., 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.)))
         
         return Overallamp*(amp0*(fgrid**(-7./6.))*amplitudeIMR + 2*np.sqrt(np.pi/5.)*ampTidal)*planck_taper
     
@@ -906,7 +905,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # Terminate the waveform at 1.2 times the merger frequency
         f_end_taper = 1.2*f_merger
 
-        return 0.98*f_end_taper/(M*glob.GMsun_over_c3)
+        return 0.97*f_end_taper/(M*glob.GMsun_over_c3)
     
         
 class IMRPhenomHM(WaveFormModel):
