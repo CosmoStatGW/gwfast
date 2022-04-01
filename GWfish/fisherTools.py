@@ -90,13 +90,20 @@ def CovMatr(FisherMatrix, evParams,
                     invMethod='svd'
                     if verbose:
                         print('Cholesky decomposition not usable. Using method %s' %invMethod)
-
+            elif invMethod=='cho':
+                try:
+                    c = (mpmath.cholesky(FisherM_))**-1 
+                except Exception as e:
+                    print(e)
+                    invMethod='svd'
+                    print('Cholesky decomposition not usable. Eigenvalues seem ok but cholesky decomposition failed. Using method %s' %invMethod)
+                    cho_failed+=1
 
             if invMethod=='inv':
                     cc = FisherM_**-1
                     cc = (cc+cc.T)/2
             elif invMethod=='cho':
-                    c = (mpmath.cholesky(FisherM_))**-1 
+                    #c = cF**-1 
                     cc = c.T*c
             elif invMethod=='svd':
                     U, S, V = mpmath.svd_r(FisherM_)
@@ -266,19 +273,36 @@ def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True, verbose=False):
         # Being the Fisher symmetric by definition, we can use the numpy.linalg function 'eigh', to speed up a bit
         # The input has size (Npar,Npar,Nev), so we have to swap
         if not use_mpmath:
-            evals, evecs = onp.linalg.eigh(FisherM.transpose(2,0,1))
+            evals, evecs = scipy.linalg.eigh(FisherM.transpose(2,0,1))
         else:
             evals = onp.zeros(FisherM.shape[1:][::-1])
             evecs = onp.zeros(FisherM.shape[::-1])
             for k in range(FisherM.shape[-1]):
-                aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
-                E, ER = mpmath.eigh(aam)
-                evals[k, :] = onp.array(E, dtype=onp.float128)
-                evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
-        
+                try:
+                    aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
+                    E, ER = mpmath.eigh(aam)
+                    evals[k, :] = onp.array(E, dtype=onp.float128)
+                    evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
+                except Exception as e:
+                    print(e)
+                    print('Trying with scipy')
+                    try:
+                        evals[k, :], evecs[k, :, :] = scipy.linalg.eigh(FisherM[:,:,k])
+                    except Exception as e:
+                        print(e)
+                        print('Event is number %s' %k)
+                        evals[k, :], evecs[k, :, :] = onp.full(FisherM.shape[0], onp.nan, ), onp.full((FisherM.shape[0], FisherM.shape[0]), onp.nan, )
+                        #condNumber = None
+                        print(FisherM[:,:,k])
+                        
+                    
         if onp.any(evals <= 0.):
             print('WARNING: one or more eigenvalues are negative.')
         
+        #print('Evals: %s ' %str(evals))
+        
+        #print('Max eval: %s ' %str(onp.abs(evals).max(axis=1)))
+        #print('Min  eval: %s ' %str(onp.abs(evals).min(axis=1)))
         condNumber = onp.abs(evals).max(axis=1)/onp.abs(evals).min(axis=1)
         
         if onp.any(condNumber>condNumbMax) and verbose:
@@ -344,14 +368,21 @@ def check_covariance(FisherM, Cov, tol=1e-10):
 
     
     
-def fixParams(Matr, ParNums_inp, ParMarg):
+def fixParams(MatrIn, ParNums_inp, ParMarg):
     import copy
     ParNums = copy.deepcopy(ParNums_inp)
     
     IdxMarg = onp.sort(onp.array([ParNums[par] for par in ParMarg]))
-    Matr = onp.delete(Matr, IdxMarg, 0)
-    Matr = onp.delete(Matr, IdxMarg, 1)
+    newdim = MatrIn.shape[0]-len(IdxMarg)
     
+    NewMatr = onp.zeros( (newdim, newdim, MatrIn.shape[-1]) )
+    
+    for k in range(MatrIn.shape[-1]):
+    
+        Matr = onp.delete(MatrIn[:, :, k], IdxMarg, 0)
+        Matr = onp.delete(Matr[:, :], IdxMarg, 1)
+        NewMatr[:, :, k] = Matr
+        
     # Given that we deleted some rows and columns, 
     # the meaning of the numbers of the remaining ones changes
         
@@ -362,7 +393,7 @@ def fixParams(Matr, ParNums_inp, ParMarg):
                         ParNums[tmp] -= 1
                         ParNums.pop(key, None)
     
-    return Matr, ParNums
+    return NewMatr, ParNums
 
 
 def addPrior(Matr, vals, ParNums, ParAdd):
