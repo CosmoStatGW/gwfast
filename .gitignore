@@ -9,3 +9,5 @@ data/
 results/
 notebooks/Plots_Fishers.ipynb
 notebooks/IMRPhenomHM_nofor.ipynb
+GWfish/tests
+Psds/ce_curves

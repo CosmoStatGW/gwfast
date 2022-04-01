@@ -877,7 +877,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
-        # We cut the waveform at the end of the Planck taper filter
+        # We cut the waveform slightly before the end of the Planck taper filter, for numerical stability
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
@@ -905,7 +905,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # Terminate the waveform at 1.2 times the merger frequency
         f_end_taper = 1.2*f_merger
 
-        return f_end_taper/(M*glob.GMsun_over_c3)
+        return 0.98*f_end_taper/(M*glob.GMsun_over_c3)
     
         
 class IMRPhenomHM(WaveFormModel):
