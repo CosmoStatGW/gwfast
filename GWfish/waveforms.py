@@ -12,6 +12,7 @@ config.update("jax_enable_x64", True)
 import numpy as onp
 #import numpy as np
 import jax.numpy as np
+from jax import custom_jvp
 
 from abc import ABC, abstractmethod
 import os
@@ -824,12 +825,29 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         denPT = 1.0 + d_1*kappa2T + d_2*kappa2T2
         Q_0 = a_0 / np.sqrt(q)
         f_merger = Q_0 * (numPT / denPT) / (2.*np.pi)
-        # Terminate the waveform at 1.2 times the merger frequency
-        f_end_taper = 1.2*f_merger
+        # The derivative of the Planck taper filter can return NaN in some points because of numerical issues, we declare it explicitly to avoid the issue
+        @custom_jvp
+        def planck_taper_fun(x, y):
+            # Terminate the waveform at 1.2 times the merger frequency
+            a=1.2
+            yp = a*y
+            planck_taper = np.where(x < y, 1., np.where(x > yp, 0., 1. - 1./(np.exp((yp - y)/(x - y) + (yp - y)/(x - yp)) + 1.)))
+
+            return planck_taper
+
+        def planck_taper_fun_der(x,y):
+            # Terminate the waveform at 1.2 times the merger frequency
+            a=1.2
+            yp = a*y
+            tangent_out = np.where(x < y, 0., np.where(x > yp, 0., np.exp((yp - y)/(x - y) + (yp - y)/(x - yp))*((-1.+a)/(x-y) + (-1.+a)/(x-yp) + (-y+yp)/((x-y)**2) + 1.2*(-y+yp)/((x-yp)**2))/((np.exp((yp - y)/(x - y) + (yp - y)/(x - yp)) + 1.)**2)))
+            tangent_out = np.nan_to_num(tangent_out)
+            return tangent_out
         
+        planck_taper_fun.defjvps(None, lambda y_dot, primal_out, x, y: planck_taper_fun_der(x,y) * y_dot)
         # Now compute tha Planck taper series
-        
-        planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 0., 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.)))
+        #f_end_taper = 1.2*f_merger
+        #planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 0., 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.)))
+        planck_taper = planck_taper_fun(fgrid, f_merger)
         
         return Overallamp*(amp0*(fgrid**(-7./6.))*amplitudeIMR + 2*np.sqrt(np.pi/5.)*ampTidal)*planck_taper
     
@@ -905,7 +923,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # Terminate the waveform at 1.2 times the merger frequency
         f_end_taper = 1.2*f_merger
 
-        return 0.97*f_end_taper/(M*glob.GMsun_over_c3)
+        return f_end_taper/(M*glob.GMsun_over_c3)
     
         
 class IMRPhenomHM(WaveFormModel):

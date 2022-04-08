@@ -11,3 +11,6 @@ notebooks/Plots_Fishers.ipynb
 notebooks/IMRPhenomHM_nofor.ipynb
 GWfish/tests
 Psds/ce_curves
+psds/ASDs_OnEv/GW170817/LIGO_H_ASD_GW170817.txt
+psds/ASDs_OnEv/GW170817/LIGO_L_ASD_GW170817.txt
+psds/ASDs_OnEv/GW170817/Virgo_ASD_GW170817.txt

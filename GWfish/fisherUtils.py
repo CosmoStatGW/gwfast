@@ -152,7 +152,7 @@ def check_evparams(evParams):
             evParams['tcoal']
         except KeyError:
             try:
-                # In the code we use Greenwich Mean Sideral Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
+                # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
                 evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
             except KeyError:
                 raise ValueError('One among tGPS and tcoal has to be provided.')
@@ -175,7 +175,7 @@ def check_evparams(evParams):
         
         
 def GPSt_to_LMST(t_GPS, lat, long):
-  # Returns the Local Mean Sideral Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
+  # Returns the Local Mean Sidereal Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
   from astropy.coordinates import EarthLocation
   import astropy.time as aspyt
   import astropy.units as u
