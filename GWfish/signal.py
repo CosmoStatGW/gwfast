@@ -36,11 +36,11 @@ class GWSignal(object):
     '''
     Class to compute the GW signal emitted by a coalescing binary system as seen by a detector on Earth.
     
-    The functions defined within this class allow to get the amplitude of the signal, its phase, and SNR.
+    The functions defined within this class allow to get the amplitude of the signal, its phase, SNR and Fisher matrix elements.
     
     Inputs are an object containing the waveform model, the coordinates of the detector (latitude and longitude in deg),
     its shape (L or T), the angle w.r.t. East of the bisector of the arms (deg) 
-    and its ASD (given in a .txt file containing two columns: one with the frequencies and one with the ASD values, 
+    and its ASD or PSD (given in a .txt file containing two columns: one with the frequencies and one with the ASD or PSD values,
     remember ASD=sqrt(PSD))
     
     '''
@@ -51,6 +51,7 @@ class GWSignal(object):
                 det_long=9.45,
                 det_xax=0., 
                 verbose=True,
+                is_ASD=True,
                 useEarthMotion = False,
                 noMotion = False, # use only for checks
                 fmin=2., fmax=None,
@@ -63,10 +64,13 @@ class GWSignal(object):
             raise ValueError('Enter valid detector configuration')
         
         if psd_path is None:
-            raise ValueError('Enter a valid PSD path')
+            raise ValueError('Enter a valid PSD or ASD path')
         
         if verbose:
-            print('Using PSD from file %s ' %psd_path)
+            if not is_ASD:
+                print('Using PSD from file %s ' %psd_path)
+            else:
+                print('Using ASD from file %s ' %psd_path)
         
         if (useEarthMotion) and (wf_model.objType == 'BBH'):
             print('WARNING: the motion of Earth gives a negligible contribution for BBH signals, consider switching it off to make the code run faster')
@@ -94,7 +98,10 @@ class GWSignal(object):
         
         noise = onp.loadtxt(psd_path, usecols=(0,1))
         f = noise[:,0]
-        S = (noise[:,1])**2
+        if is_ASD:
+            S = (noise[:,1])**2
+        else:
+            S = noise[:,1]
         
         self.strainFreq = f
         self.noiseCurve = S
