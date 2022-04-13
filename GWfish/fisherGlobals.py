@@ -39,7 +39,8 @@ clightGpc = clight/3.0856778570831e+22
 f_isco=1./(np.sqrt(6.)*6.*2.*np.pi*GMsun_over_c3)
 
 ##############################################################################
-# POSITIONS OF EXIXTING DETECTORS
+# POSITIONS OF DETECTORS
+# See https://iopscience.iop.org/article/10.3847/1538-4357/ac4164
 ##############################################################################
 
 
@@ -59,6 +60,12 @@ detectors = { 'L1': { 'lat':30.563,
              'Virgo': { 'lat':43.631,
                      'long':10.504,
                      'xax':115.56756342034298,
+                     'shape':'L',
+                    },
+             
+             'Kagra': { 'lat':36.412,
+                     'long':137.306,
+                     'xax':15.396,
                      'shape':'L',
                     },
              
