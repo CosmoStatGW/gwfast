@@ -845,9 +845,8 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         
         planck_taper_fun.defjvps(None, lambda y_dot, primal_out, x, y: planck_taper_fun_der(x,y) * y_dot)
         # Now compute tha Planck taper series
-        #f_end_taper = 1.2*f_merger
-        #planck_taper = np.where(fgrid <= f_merger, 1., np.where(fgrid >= f_end_taper, 0., 1. - 1./(np.exp((f_end_taper - f_merger)/(fgrid - f_merger) + (f_end_taper - f_merger)/(fgrid - f_end_taper)) + 1.)))
-        planck_taper = planck_taper_fun(fgrid, f_merger)
+        # This filter causes big numerical issues at the cut when computing derivatives and the last element is very small but not 0. We fix it "by hand" with this nan_to_num which assigns 0 in place of NaN. We performed extensive checks and this does not affect any other part of the computation, only the very last point of the frequency grid in some random and rare cases.
+        planck_taper = np.nan_to_num(planck_taper_fun(fgrid, f_merger))
         
         return Overallamp*(amp0*(fgrid**(-7./6.))*amplitudeIMR + 2*np.sqrt(np.pi/5.)*ampTidal)*planck_taper
     
