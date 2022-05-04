@@ -133,13 +133,15 @@ class GWSignal(object):
         
         
     def _init_jax(self):
-        print('Initializing jax...')
+        if self.verbose:
+            print('Initializing jax...')
         os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
         os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
         os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
         #os.environ['XLA_FLAGS'] = f'--xla_force_host_platform_device_count=8'
-        print('Jax local device count: %s' %str(jax.local_device_count()))
-        print('Jax  device count: %s' %str(jax.device_count()))
+        if self.verbose:
+            print('Jax local device count: %s' %str(jax.local_device_count()))
+            print('Jax  device count: %s' %str(jax.device_count()))
         
         if self.jitCompileDerivs:
             self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
@@ -173,7 +175,8 @@ class GWSignal(object):
         #iota, psi, tcoal, etaOr, Phicoal = inj_params_init['iota'].astype('complex128'), inj_params_init['psi'].astype('complex128'), inj_params_init['tcoal'].astype('complex128'), inj_params_init['eta'].astype('complex128'), inj_params_init['Phicoal'].astype('complex128')
         #chiS, chiA = inj_params_init['chis'].astype('complex128'), inj_params_init['chia'].astype('complex128')
         #_ = self._SignalDerivatives_use(np.array([[50., 70]]).astype('complex128').T, McOr, etaOr, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, np.array([0.]).astype('complex128'), np.array([0.]).astype('complex128'), )
-        print('Done.')
+        if self.verbose:
+            print('Done.')
         self.verbose = verboseOr
         self.detector_shape = detector_shapeOr
      
@@ -522,7 +525,8 @@ class GWSignal(object):
             
         fminarr = np.full(fcut.shape, self.fmin)
         fgrids = np.geomspace(fminarr,fcut,num=int(res))
-        strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
+        # Out of the provided PSD range, we use a constant value of 1, which results in completely negligible conntributions
+        strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve, left=1., right=1.)
         
         if self.detector_shape=='L':    
             Aps, Acs = self.GWAmplitudes(evParams, fgrids)
@@ -635,7 +639,8 @@ class GWSignal(object):
         #print('frequency grid: fmin=%s, fmax= %s, step=%s '%(fminarr,fcut, df))
         #
         #print(fgrids)
-        strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
+        # Out of the provided PSD range, we use a constant value of 1, which results in completely negligible conntributions
+        strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve, left=1., right=1.)
 
         nParams = self.wf_model.nParams
         tcelem = self.wf_model.ParNums['tcoal']
@@ -1293,12 +1298,12 @@ class GWSignal(object):
             if self.detector_shape=='L':
                 Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=0.)
                 Qsq = (Fp*0.5*(1.+(np.cos(iota))**2))**2 + (Fc*np.cos(iota))**2
-                SNR = fac * np.sqrt(Qsq*onp.interp(fcut, self.strainFreq[mask], self.strainInteg))
+                SNR = fac * np.sqrt(Qsq*onp.interp(fcut, self.strainFreq[mask], self.strainInteg, left=1., right=1.))
             elif self.detector_shape=='T':
                 for i in range(3):
                     Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=60.*i)
                     Qsq = (Fp*0.5*(1.+(np.cos(iota))**2))**2 + (Fc*np.cos(iota))**2
-                    tmpSNR = fac * np.sqrt(Qsq*onp.interp(fcut, self.strainFreq[mask], self.strainInteg))
+                    tmpSNR = fac * np.sqrt(Qsq*onp.interp(fcut, self.strainFreq[mask], self.strainInteg, left=1., right=1.))
                     SNR = SNR + tmpSNR*tmpSNR
                 SNR = np.sqrt(SNR)
         else:
@@ -1318,7 +1323,7 @@ class GWSignal(object):
                 
                 fminarr = np.full(fcut.shape, self.fmin)
                 fgrids = np.geomspace(fminarr,fcut,num=int(5000))
-                strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve)
+                strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve, left=1., right=1.)
                 
                 for m in range(4):
                     tmpIntegrandC = IntegrandC(fgrids, Mc, tcoal, m+1.)

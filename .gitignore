@@ -7,6 +7,7 @@ notebooks/Testing_and_Implementation.ipynb
 calculate_fishers_from_catalog_parallel.py
 data/
 results/
+plots/
 notebooks/Plots_Fishers.ipynb
 notebooks/IMRPhenomHM_nofor.ipynb
 GWfish/tests
