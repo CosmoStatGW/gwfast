@@ -94,7 +94,7 @@ class NewtInspiral(WaveFormModel):
     def __init__(self, **kwargs):
         # Cut from M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1) it seems be that, for BNS in the non-tidal case, the cut frequency should be lowered to (0.04/(2.*np.pi*glob.GMsun_over_c3))/Mtot.
-        super().__init__('BBH', 4400., is_newtonian=True, **kwargs)
+        super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6)*glob.GMsun_over_c3), is_newtonian=True, **kwargs)
     
     def Phi(self, f, **kwargs):
         phase = 3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)
@@ -115,7 +115,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, **kwargs):
         
         if fHigh is None:
-            fHigh = 4400. #Hz
+            fHigh = 1./(6.*np.pi*np.sqrt(6)*glob.GMsun_over_c3) #Hz
         if is_tidal:
             objectT = 'BNS'
         else:
