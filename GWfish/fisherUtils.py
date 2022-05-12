@@ -101,6 +101,10 @@ def phi_to_ra_degminsec(phi):
     ra = np.rad2deg(phi)
     return deg_min_sec_string(*rad_to_deg_min_sec(ra)) #hr_min_sec_string(*rad_to_hr_min_sec(ra))
 
+##############################################################################
+# TIDAL PARAMETERS
+##############################################################################
+
 def Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta):
     # Returns the dimensionless tidal deformability parameters Lambda_tilde and delta_Lambda as defined in PhysRevD.89.103012 eq. (5) and (6), as a function of the dimensionless tidal deformabilities of the two objects and the symmetric mass ratio
     eta2 = eta*eta
@@ -137,42 +141,6 @@ def Lam12_from_Lamt_delLam(Lamt, delLam, eta):
 def GPSt_to_J200t(t_GPS):
     # According to https://www.andrews.edu/~tzs/timeconv/timedisplay.php the GPS time of J2000 is 630763148 s
     return t_GPS - 630763148.0
-
-
-
-def check_evparams(evParams):
-        #try:
-        #    evParams['logdL']
-        #except KeyError:
-        #    try:
-        #        evParams['logdL'] = np.log(evParams['dL'])
-        #    except KeyError:
-        #        raise ValueError('One among dL and logdL has to be provided.')
-        try:
-            evParams['tcoal']
-        except KeyError:
-            try:
-                # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
-                evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
-            except KeyError:
-                raise ValueError('One among tGPS and tcoal has to be provided.')
-        try:
-            evParams['chi1z']
-        except KeyError:
-            try:
-                evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
-                evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
-            except KeyError:
-                raise ValueError('Two among chi1z, chi2z and chiS and chiA have to be provided.')
-        
-        #try:
-        #    evParams['cosiota']
-        #except KeyError:
-        #    try:
-        #        evParams['cosiota'] = np.cos(evParams['iota'])
-        #    except KeyError:
-        #        raise ValueError('One among dL and logdL has to be provided.')
-        
         
 def GPSt_to_LMST(t_GPS, lat, long):
   # Returns the Local Mean Sidereal Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
@@ -184,9 +152,8 @@ def GPSt_to_LMST(t_GPS, lat, long):
   LMST = t.sidereal_time('mean').value
   return jnp.array(LMST/24.)
 
-
 ##############################################################################
-# Spherical Harmonics
+# SPHERICAL HARMONICS
 ##############################################################################
 
 def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
@@ -276,6 +243,29 @@ def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
     
     return hp, hc
 
+##############################################################################
+# OTHERS
+##############################################################################
+
+def check_evparams(evParams):
+        # Function to check the format of the events' parameters and make the needed conversions
+        try:
+            evParams['tcoal']
+        except KeyError:
+            try:
+                # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
+                evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
+            except KeyError:
+                raise ValueError('One among tGPS and tcoal has to be provided.')
+        try:
+            evParams['chi1z']
+        except KeyError:
+            try:
+                evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
+                evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
+            except KeyError:
+                raise ValueError('Two among chi1z, chi2z and chiS and chiA have to be provided.')
+        
 
 class RegularGridInterpolator_JAX:
     """

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-#os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
 import jax
-#jax.devices('cpu')
+
 
 from jax.config import config
 config.update("jax_enable_x64", True)
@@ -21,7 +20,6 @@ import h5py
 
 PACKAGE_PARENT = '..'
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
-#sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
 sys.path.append(SCRIPT_DIR)
 
 
@@ -34,12 +32,10 @@ class WaveFormModel(ABC):
     '''
     
     def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=False):
-        # The kind of system the wf model is made for, can be 'BBH' or 'BNS'
+        # The kind of system the wf model is made for, can be 'BBH', 'BNS' or 'NSBH'
         self.objType = objType 
-        # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun)
+        # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun). The method fcut can be redefined, as e.g. in the IMRPhenomD implementation, and fcutPar can be passed as an adimensional frequency (Mf)
         self.fcutPar = fcutPar
-        # Note that Phicoal is always the last parameter appearing in the Fisher, by construction of the code,
-        # even if we add the tidal prameters (and even if it is not the last entry of the function GWstrain in GWSignal)
         # Note that the Fisher is computed for chiS and chiA, but the waveforms accept as input only chi1z and chi2z
         self.ParNums = {'Mc':0, 'eta':1, 'dL':2, 'theta':3, 'phi':4, 'iota':5, 'psi':6, 'tcoal':7, 'Phicoal':8, 'chiS':9,  'chiA':10}
         self.is_newtonian=is_newtonian
@@ -67,7 +63,7 @@ class WaveFormModel(ABC):
         # The frequency of the GW, as a function of frequency
         # With reference to the book M. Maggiore - Gravitational Waves Vol. 1, with Phi we mean only
         # the GW frequency, not the full phase of the signal, given by 
-        # Psi+(f) = 2 pi f (t_c + r/c) - Phi0 - pi/4 - Phi(f)  
+        # Psi+(f) = 2 pi f t_c - Phi0 - pi/4 - Phi(f)
         pass
     
     @abstractmethod
@@ -94,7 +90,7 @@ class NewtInspiral(WaveFormModel):
     def __init__(self, **kwargs):
         # Cut from M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1) it seems be that, for BNS in the non-tidal case, the cut frequency should be lowered to (0.04/(2.*np.pi*glob.GMsun_over_c3))/Mtot.
-        super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6)*glob.GMsun_over_c3), is_newtonian=True, **kwargs)
+        super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3), is_newtonian=True, **kwargs)
     
     def Phi(self, f, **kwargs):
         phase = 3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)
@@ -115,7 +111,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, **kwargs):
         
         if fHigh is None:
-            fHigh = 1./(6.*np.pi*np.sqrt(6)*glob.GMsun_over_c3) #Hz
+            fHigh = 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3) #Hz
         if is_tidal:
             objectT = 'BNS'
         else:
@@ -140,7 +136,6 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         chi_sdotchi_a  = chi_s*chi_a
         # flso = 1/6^(3/2)/(pi*M) -> vlso = (pi*M*flso)^(1/3) = (1/6^(3/2))^(1/3)
         vlso = 1./np.sqrt(6.)
-        # The number next to the various terms denotes the order in v
         
         TF2coeffs = {}
         TF2OverallAmpl = 3./(128. * eta)
@@ -188,7 +183,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         return amplitude
     
     def tau_star(self, f, **kwargs):
-        # For complex waveforms we use the expression in arXiv:0907.0700 eq. (3.8b)
+        # We use the expression in arXiv:0907.0700 eq. (3.8b)
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta = kwargs['eta']
@@ -234,7 +229,7 @@ class IMRPhenomD(WaveFormModel):
         chi1dotchi2  = chi1*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
+        
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -375,7 +370,7 @@ class IMRPhenomD(WaveFormModel):
         chi12, chi22 = chi1*chi1, chi2*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
+        
         SetaPlus1 = 1.0 + Seta
         chi_s     = 0.5 * (chi1 + chi2)
         chi_a     = 0.5 * (chi1 - chi2)
@@ -461,7 +456,6 @@ class IMRPhenomD(WaveFormModel):
         # which is taken from arXiv:1508.07250 eq. (3.6)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s = (m1*m1 * chi1 + m2*m2 * chi2)
@@ -475,7 +469,6 @@ class IMRPhenomD(WaveFormModel):
         # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s = (m1*m1 * chi1 + m2*m2 * chi2) / (m1*m1 + m2*m2)
@@ -532,7 +525,7 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
             Lambda1, Lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
             # A non-zero tidal deformability induces a quadrupole moment (for BBH it is 1).
             # The relation between the two is given in arxiv:1608.02582 eq. (15) with coefficients from third row of Table I
-            # We also extend the range to 0 <= Lam < 1, as done in LALSimulatio in LALSimUniversalRelations.c line 123
+            # We also extend the range to 0 <= Lam < 1, as done in LALSimulation in LALSimUniversalRelations.c line 123
             QuadMon1 = np.where(Lambda1 < 1., 1. + Lambda1*(0.427688866723244 + Lambda1*(-0.324336526985068 + Lambda1*0.1107439432180572)), np.exp(0.1940 + 0.09163 * np.log(Lambda1) + 0.04812 * np.log(Lambda1) * np.log(Lambda1) -4.283e-3 * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1) + 1.245e-4 * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1)))
             QuadMon2 = np.where(Lambda2 < 1., 1. + Lambda2*(0.427688866723244 + Lambda2*(-0.324336526985068 + Lambda2*0.1107439432180572)), np.exp(0.1940 + 0.09163 * np.log(Lambda2) + 0.04812 * np.log(Lambda2) * np.log(Lambda2) -4.283e-3 * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2) + 1.245e-4 * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2)))
             
@@ -544,7 +537,6 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         chi1dotchi2  = chi1*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -719,7 +711,6 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
             Lambda1, Lambda2 = np.zeros(M.shape), np.zeros(M.shape)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         q = 0.5*(1.0 + Seta - 2.0*eta)/eta
         chi_s = 0.5 * (chi1 + chi2)
@@ -856,7 +847,6 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # which is taken from arXiv:1508.07250 eq. (3.6)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s  = (m1*m1 * chi1 + m2*m2 * chi2)
@@ -869,7 +859,6 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s  = (m1*m1 * chi1 + m2*m2 * chi2) / (m1*m1 + m2*m2)
@@ -956,7 +945,6 @@ class IMRPhenomHM(WaveFormModel):
         chi1dotchi2  = chi1*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -1146,7 +1134,6 @@ class IMRPhenomHM(WaveFormModel):
         chi12, chi22 = chi1*chi1, chi2*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -1304,7 +1291,7 @@ class IMRPhenomHM(WaveFormModel):
         return ampllm
     
     def hphc(self, f, **kwargs):
-        
+        # This function retuns directly the full plus and cross polarisations, avoiding for loops over the modes
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         eta2 = eta*eta # These can speed up a bit, we call them multiple times
@@ -1317,7 +1304,6 @@ class IMRPhenomHM(WaveFormModel):
         chi1dotchi2  = chi1*chi2
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -1345,7 +1331,6 @@ class IMRPhenomHM(WaveFormModel):
         modes = np.array([21,22,32,33,43,44])
         ells = np.floor(modes/10).astype('int')
         mms = modes - ells*10
-        #elem22idx = np.argwhere(modes==22)[0,0]
         # Domain mapping for dimnesionless BH spin
         alphaRDfr = np.log(2. - aeff) / np.log(3.)
         # beta = 1. / (2. + l - abs(m))
@@ -1635,8 +1620,6 @@ class IMRPhenomHM(WaveFormModel):
         
         tmpGridShape = len((fgrid*Map_ai + Map_bi).shape)
                                 
-        #PhisAllModes = np.where(fgrid < Map_fiPhi, ((completePhase((fgrid*Map_ai + Map_bi).transpose(0,2,1), C1MRDHM, C2MRDHM, Rholm, Taulm)).transpose(0,2,1)/Map_ai), np.where(fgrid < Map_fr, (- PhDBconst + PhDBAterm + completePhase((fgrid*Map_amPhi + Map_bmPhi).transpose(0,2,1), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_amPhi.T).transpose(0,2,1), (- PhDCconst + tmpphaseC + completePhase((fgrid*Map_arPhi + Map_brPhi).transpose(0,2,1), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_arPhi.T).transpose(0,2,1)))
-        #PhisAllModes = np.where(fgrid < Map_fiPhi, np.moveaxis(completePhase(np.moveaxis((fgrid*Map_ai + Map_bi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm), len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2)/Map_ai, np.where(fgrid < Map_fr, np.moveaxis(- PhDBconst + PhDBAterm + completePhase(np.moveaxis((fgrid*Map_amPhi + Map_bmPhi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_amPhi.T, len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2), np.moveaxis(- PhDCconst + tmpphaseC + completePhase(np.moveaxis((fgrid*Map_arPhi + Map_brPhi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_arPhi.T, len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2)))
         if len(AmplsAllModes.shape)==3:
             PhisAllModes = np.where(fgrid < Map_fiPhi, np.moveaxis(completePhase(np.moveaxis((fgrid*Map_ai + Map_bi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm), len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2)/Map_ai, np.where(fgrid < Map_fr, np.moveaxis(- PhDBconst + PhDBAterm + completePhase(np.moveaxis((fgrid*Map_amPhi + Map_bmPhi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_amPhi.T, len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2), np.moveaxis(- PhDCconst + tmpphaseC + completePhase(np.moveaxis((fgrid*Map_arPhi + Map_brPhi), tmpGridShape-1, tmpGridShape-2), C1MRDHM, C2MRDHM, Rholm, Taulm)/Map_arPhi.T, len(AmplsAllModes.shape)-1, len(AmplsAllModes.shape)-2)))
         else:
@@ -1660,7 +1643,6 @@ class IMRPhenomHM(WaveFormModel):
         # which is taken from arXiv:1508.07250 eq. (3.6)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s  = (m1*m1 * chi1 + m2*m2 * chi2)
@@ -1673,7 +1655,6 @@ class IMRPhenomHM(WaveFormModel):
         # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s  = (m1*m1 * chi1 + m2*m2 * chi2) / (m1*m1 + m2*m2)
@@ -1798,7 +1779,6 @@ class IMRPhenomNSBH(WaveFormModel):
         
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         chi_s = 0.5 * (chi1 + chi2)
         chi_a = 0.5 * (chi1 - chi2)
@@ -1990,7 +1970,6 @@ class IMRPhenomNSBH(WaveFormModel):
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         q = 0.5*(1.0 + Seta - 2.0*eta)/eta
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         SetaPlus1 = 1.0 + Seta
         # We work in dimensionless frequency M*f, not f
         fgrid = M*glob.GMsun_over_c3*f
@@ -2055,8 +2034,7 @@ class IMRPhenomNSBH(WaveFormModel):
         # In LAL the relation is inverted each time, but this would break the vectorisation,
         # we use an interpolator on a grid of Comp, q, chi instead. Already with 100 pts per parameter the
         # agreement we find with LAL waveforms is at machine precision
-        #tmpcheck = np.asarray(Comp)
-        #xiTide = self.xiTide_interp(np.asarray([Comp, q, chi1]).T)
+        
         xiTide = self.xiTide_interp(np.asarray((np.asarray(Comp), np.asarray(q), np.asarray(chi1))).T)
         
         # Compute Kerr BH ISCO radius
@@ -2143,6 +2121,7 @@ class IMRPhenomNSBH(WaveFormModel):
         
         f0_tilde_RD  = np.where(ftide < fring, 0., np.where(Lambda>1., fring_tilde/(M*glob.GMsun_over_c3), ((1.0 - 0.02*Lambda + 0.01*Lambda*Lambda)*0.98*fring)/(M*glob.GMsun_over_c3)))
         
+        # This can be used to output the merger type if needed
         #merger_type = onp.where(ftide < fring, onp.where(Mtorus>0., 'DISRUPTIVE', 'MILDLY_DISRUPTIVE_NO_TORUS_REMNANT'), onp.where(Mtorus>0.,'MILDLY_DISRUPTIVE_TORUS_REMNANT', 'NON_DISRUPTIVE'))
         
         v = (fgrid*np.pi)**(1./3.)
@@ -2174,7 +2153,6 @@ class IMRPhenomNSBH(WaveFormModel):
         # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
-        #Seta = np.sqrt(1.0 - 4.0*eta)
         m1 = 0.5 * (1.0 + Seta)
         m2 = 0.5 * (1.0 - Seta)
         s = (m1*m1 * chi1 + m2*m2 * chi2) / (m1*m1 + m2*m2)

@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  8 17:22:56 2022
-
-@author: Michi
-"""
 
 import numpy as onp
 import fisherUtils as utils
@@ -54,5 +49,3 @@ class DetNet(object):
         print('Done.')
         return totF
 
-    
-    
