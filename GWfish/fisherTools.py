@@ -10,8 +10,6 @@ config.update("jax_enable_x64", True)
 
 # We use both the original numpy, denoted as onp, and the JAX implementation of numpy, denoted as np
 import numpy as onp
-#import numpy as np
-#import jax.numpy as np
 import copy
 import GWfish.fisherUtils as utils
 import mpmath

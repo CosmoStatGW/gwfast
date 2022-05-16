@@ -9,7 +9,6 @@ config.update("jax_enable_x64", True)
 
 # We use both the original numpy, denoted as onp, and the JAX implementation of numpy, denoted as np
 import numpy as onp
-#import numpy as np
 import jax.numpy as np
 from jax import custom_jvp
 
@@ -2229,7 +2228,6 @@ class IMRPhenomNSBH(WaveFormModel):
 
     def _make_xiTide_interpolator(self, res=200):
 
-        #from scipy.interpolate import RegularGridInterpolator
         if self.path_xiTide_tab is not None:
             if os.path.exists(self.path_xiTide_tab):
                 if self.verbose:

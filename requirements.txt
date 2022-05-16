@@ -1,0 +1,8 @@
+numpy
+jax
+scipy
+astropy
+h5py
+mpmath
+matplotlib
+numdifftools
