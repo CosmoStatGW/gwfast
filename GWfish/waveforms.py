@@ -1733,7 +1733,7 @@ class IMRPhenomNSBH(WaveFormModel):
           a grid of xi_tide as a function of the compactness, mass ratio and BH spin, and then use a 3D
           interpolator. The first time the code runs, if this interpolator is not already present, it will be
           computed (the base resolution of the grid is 200 pts per parameter, that we find
-          sufficient to reproduce LAL waveforms with sufficient precision, given the smooth behaviour of the function,
+          sufficient to reproduce LAL waveforms with good precision, given the smooth behaviour of the function,
           but this can be raised if needed. In this case, it is necessary to change tha name of the file assigned to self.path_xiTide_tab and the res parameter passed to _make_xiTide_interpolator())
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1509.00512, arXiv:1905.06011
