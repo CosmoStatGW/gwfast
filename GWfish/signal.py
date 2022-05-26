@@ -740,7 +740,7 @@ class GWSignal(object):
     
     
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=False, stepNDT=1e-9):
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, computeRealDeriv=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=1e-9):
         if self.verbose:
             print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM

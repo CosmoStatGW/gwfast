@@ -51,25 +51,44 @@ detectors = { 'L1': { 'lat':30.563,
                      'shape':'L',
                     },
              
-             'Virgo': { 'lat':43.631,
+             'Virgo': {'lat':43.631,
                      'long':10.504,
                      'xax':115.56756342034298,
                      'shape':'L',
                     },
              
-             'Kagra': { 'lat':36.412,
+             'KAGRA': {'lat':36.412,
                      'long':137.306,
                      'xax':15.396,
                      'shape':'L',
                     },
-             
-             
+            'LIGOI': {'lat':19.613,
+                     'long':77.031,
+                     'xax':287.384,
+                     'shape':'L',
+                    },
+
             'ETS': { 'lat': 40+31/60,
                     'long': 9+25/60,
                     'xax':0. ,
-                'shape':'T',
-                }
-
+                    'shape':'T',
+                   },
+                
+            'CE1Id':{'lat':43.827,
+                     'long':-112.825,
+                     'xax':45.,
+                     'shape':'L',
+                  },
+            'CE2NM':{'lat':33.160,
+                     'long':-106.480,
+                     'xax':195.,
+                     'shape':'L',
+                  },
+            'CE2NSW':{'lat':-34.,
+                     'long':145.,
+                     'xax':90.,
+                     'shape':'L',
+                  },
     
             }
 

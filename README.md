@@ -37,9 +37,7 @@ GWFAST/WFfiles/
 
 * [Usage](https://github.com/CosmoStatGW/WF4Py#Usage)
 * [Installation](https://github.com/CosmoStatGW/WF4Py#Installation)
-* [Available models](https://github.com/CosmoStatGW/WF4Py#Available-models)
-* [Testing](https://github.com/CosmoStatGW/WF4Py#Testing)
-* [Bibliography](https://github.com/CosmoStatGW/WF4Py#Bibliography)
+* [Example](https://github.com/CosmoStatGW/WF4Py#Available-models)
 
 
 ## Usage
