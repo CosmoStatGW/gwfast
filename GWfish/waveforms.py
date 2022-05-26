@@ -25,6 +25,10 @@ sys.path.append(SCRIPT_DIR)
 import fisherGlobals as glob
 import fisherUtils as utils
 
+##############################################################################
+# WaveFormModel CLASS DEFINITION
+##############################################################################
+
 class WaveFormModel(ABC):
     '''
     Abstract class to compute waveforms
@@ -80,6 +84,9 @@ class WaveFormModel(ABC):
         # the expression is different
         return self.fcutPar/(kwargs['Mc']/(kwargs['eta']**(3./5.)))
 
+##############################################################################
+# NEWTONIAN INSPIRAL WAVEFORM
+##############################################################################
 
 class NewtInspiral(WaveFormModel):
     '''
@@ -100,6 +107,9 @@ class NewtInspiral(WaveFormModel):
         amplitude = np.sqrt(5./24.) * (np.pi**(-2./3.)) * glob.clightGpc/kwargs['dL'] * (glob.GMsun_over_c3*kwargs['Mc'])**(5./6.) * (f**(-7./6.))
         return amplitude
 
+##############################################################################
+# TAYLORF2 3.5 RESTRICTED PN WAVEFORM
+##############################################################################
 
 class TaylorF2_RestrictedPN(WaveFormModel):
     '''
@@ -195,6 +205,10 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         t7  = (- 15419335./127008. - 75703./756.*eta + 14809./378.*eta2)*np.pi*(v**7)
         
         return OverallFac*(t05 + t6 + t7)
+
+##############################################################################
+# IMRPhenomD WAVEFORM
+##############################################################################
 
 class IMRPhenomD(WaveFormModel):
     '''
@@ -495,6 +509,10 @@ class IMRPhenomD(WaveFormModel):
         
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
     
+##############################################################################
+# IMRPhenomD_NRTidalv2 WAVEFORM
+##############################################################################
+
 class IMRPhenomD_NRTidalv2(WaveFormModel):
     '''
     IMRPhenomD_NRTidal waveform model
@@ -911,8 +929,11 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         f_end_taper = 1.2*f_merger
 
         return f_end_taper/(M*glob.GMsun_over_c3)
-    
-        
+
+##############################################################################
+# IMRPhenomHM WAVEFORM
+##############################################################################
+
 class IMRPhenomHM(WaveFormModel):
     '''
     IMRPhenomHM waveform model
@@ -1722,6 +1743,10 @@ class IMRPhenomHM(WaveFormModel):
     def fcut(self, **kwargs):
         
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
+
+##############################################################################
+# IMRPhenomNSBH WAVEFORM
+##############################################################################
 
 class IMRPhenomNSBH(WaveFormModel):
     '''

@@ -24,7 +24,7 @@ The folder contains ASDs for the LIGO and Virgo detectors during their O1, O2 an
 
 Available at [https://dcc.ligo.org/P1800374/public/](https://dcc.ligo.org/P1800374/public/) for O1 and O2, [https://dcc.ligo.org/LIGO-P2000251/public](https://dcc.ligo.org/LIGO-P2000251/public) for O3a, and computed using [PyCBC](https://pycbc.org) around the times indicated in the caption of Fig. 2 of [https://arxiv.org/abs/2111.03606](https://arxiv.org/abs/2111.03606).
 
-### pycbc_public/
+### unofficial\_curves\_all\_dets/
 
 Public ASDs for both the current and future generation of detectors (last update in January 2020). 
 
