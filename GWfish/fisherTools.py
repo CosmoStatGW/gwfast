@@ -74,7 +74,7 @@ def CovMatr(FisherMatrix,
                 try:
                     # In rare cases, the choleski decomposition still fails even if the eigenvalues are positive...
                     # likely for very small eigenvalues
-                    c = (mpmath.cholesky(FisherM_))**-1 
+                    c = (mpmath.cholesky(FisherM_))**-1
                 except Exception as e:
                     print(e)
                     invMethod='svd'
@@ -111,8 +111,6 @@ def CovMatr(FisherMatrix,
                         St = S
                     
                     cc=V.T*mpmath.diag([s for s in Sinv])*U.T
-                    
-                    
                     
             elif invMethod=='lu':
                     P, L, U = mpmath.lu(FisherM_)

@@ -49,3 +49,24 @@ class DetNet(object):
         print('Done.')
         return totF
 
+    def optimal_location(self, tcoal, is_tGPS=False):
+        # Function to compute the optimal theta and phi for a signal to be seen by the detector network at a given GMST. The boolean is_tGPS can be used to specify whether the provided time is a GPS time rather than a GMST, so that it will be converted.
+        # For a triangle the best location is the same of an L in the same place, as can be shown by explicit geometrical computation.
+        # Even if considering Earth rotation, the highest SNR will still be obtained if the source is in the optimal location close to the merger.
+        from scipy.optimize import minimize
+        
+        if is_tGPS:
+            tc = utils.GPSt_to_LMST(tcoal, lat=0., long=0.)
+        else:
+            tc = tcoal
+        
+        def pattern_fixedtpsi(pars, tc=tc):
+            theta, phi = pars
+            tmpsum = 0.
+            for d in self.signals.keys():
+                # compute the total by adding the squares of the signals and then taking the square root
+                Fp, Fc = self.signals[d]._PatternFunction(theta, phi, t=tc, psi=0)
+                tmpsum = tmpsum + (Fp**2 + Fc**2)
+            return -onp.sqrt(tmpsum)
+        # we actually minimize the total pattern function times -1, which is the same as maximizing it
+        return minimize(pattern_fixedtpsi, [0.,0.]).x

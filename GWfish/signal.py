@@ -1186,7 +1186,25 @@ class GWSignal(object):
         iota_deriv = iota_par_deriv()
         
         return dL_deriv, theta_deriv, phi_deriv, iota_deriv, psi_deriv, tc_deriv, Phicoal_deriv
+    
+    def optimal_location(self, tcoal, is_tGPS=False):
+        # Function to compute the optimal theta and phi for a signal to be seen by the detector network at a given GMST. The boolean is_tGPS can be used to specify whether the provided time is a GPS time rather than a GMST, so that it will be converted.
+        # For a triangle the best location is the same of an L in the same place, as can be shown by explicit geometrical computation.
+        # Even if considering Earth rotation, the highest SNR will still be obtained if the source is in the optimal location close to the merger.
+        from scipy.optimize import minimize
         
+        if is_tGPS:
+            tc = utils.GPSt_to_LMST(tcoal, lat=0., long=0.)
+        else:
+            tc = tcoal
+        
+        def pattern_fixedtpsi(pars, tc=tc):
+            theta, phi = pars
+            Fp, Fc = self._PatternFunction(theta, phi, t=tc, psi=0)
+            return -np.sqrt(Fp**2 + Fc**2)
+        # we actually minimize the pattern function times -1, which is the same as maximizing it
+        return minimize(pattern_fixedtpsi, [0.,0.]).x
+    
     def SNRFastInsp(self, evParams, checkInterp=False):
         # This module allows to compute the inspiral SNR taking into account Earth rotation, without the need 
         # of performing an integral for each event
