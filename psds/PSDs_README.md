@@ -16,7 +16,7 @@ The folder contains ASDs for:
 ### ET-0000A-18.txt
 Public [ET-D](https://arxiv.org/abs/1012.0908) sensnitivity curve. 
 
-Available at [https://apps.et-gw.eu/tds/?content=3&r=14065](https://apps.et-gw.eu/tds/?content=3&r=14065).
+Available at [https://apps.et-gw.eu/tds/?content=3&r=14065](https://apps.et-gw.eu/tds/?content=3&r=14065). Notice that we kept only the first and last column of the file, corresponding to the frequencies and the total ET-D sensitivity, obtained combining the LF and HF instruments.
 
 ### LVC_O1O2O3/
 
@@ -24,7 +24,15 @@ The folder contains ASDs for the LIGO and Virgo detectors during their O1, O2 an
 
 Available at [https://dcc.ligo.org/P1800374/public/](https://dcc.ligo.org/P1800374/public/) for O1 and O2, [https://dcc.ligo.org/LIGO-P2000251/public](https://dcc.ligo.org/LIGO-P2000251/public) for O3a, and computed using [PyCBC](https://pycbc.org) around the times indicated in the caption of Fig. 2 of [https://arxiv.org/abs/2111.03606](https://arxiv.org/abs/2111.03606).
 
-### pycbc_public/
+### observing\_scenarios\_paper/
+
+ASDs used for the paper [*Prospects for observing and localizing gravitational-wave transients with Advanced LIGO, Advanced Virgo and KAGRA*, KAGRA Collaboration, LIGO Scientific Collaboration and Virgo Collaboration](https://link.springer.com/article/10.1007/s41114-020-00026-9).
+
+Available at [https://dcc.ligo.org/LIGO-T2000012/public](https://dcc.ligo.org/LIGO-T2000012/public). 
+
+The folder contains ASDs for the Advanced LIGO, Advanced Virgo and KAGRA detectors during the O3, O4 and O5 observing runs.
+
+### unofficial\_curves\_all\_dets/
 
 Public ASDs for both the current and future generation of detectors (last update in January 2020). 
 
@@ -37,12 +45,3 @@ The folder contains ASDs for:
 * LIGO Voyager;
 * ET-D;
 * CE1 and CE2.
-
-### observing\_scenarios\_paper/
-
-ASDs used for the paper [*Prospects for observing and localizing gravitational-wave transients with Advanced LIGO, Advanced Virgo and KAGRA*, KAGRA Collaboration, LIGO Scientific Collaboration and Virgo Collaboration](https://link.springer.com/article/10.1007/s41114-020-00026-9).
-
-Available at [https://dcc.ligo.org/LIGO-T2000012/public](https://dcc.ligo.org/LIGO-T2000012/public). 
-
-The folder contains ASDs for the Advanced LIGO, Advanced Virgo and KAGRA detectors during the O3, O4 and O5 observing runs.
-

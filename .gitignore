@@ -15,3 +15,5 @@ psds/ASDs_OnEv/GW170817/LIGO_H_ASD_GW170817.txt
 psds/ASDs_OnEv/GW170817/LIGO_L_ASD_GW170817.txt
 psds/ASDs_OnEv/GW170817/Virgo_ASD_GW170817.txt
 notebooks/Results check.ipynb
+notebooks/Make_Plots_Clean.ipynb
+notebooks/optimal_orientation.ipynb

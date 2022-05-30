@@ -146,9 +146,9 @@ def CovMatr(FisherMatrix,
                     # Eigenvalue decomposition failed
                     print(e)
                     CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
-        
-        eps = compute_inversion_error(FisherMatrix, CovMatr) #onp.array([ onp.max( onp.abs(CovMatr[:, :, i]@FisherMatrix[:, :, i]-onp.eye(FisherMatrix.shape[0]))) for i in range(FisherMatrix.shape[-1]) ])
 
+        
+        eps = compute_inversion_error(FisherMatrix, CovMatr) 
 
         if verbose:
                 print('Error with %s: %s\n' %(invMethod, eps))
@@ -289,13 +289,7 @@ def fixParams(MatrIn, ParNums_inp, ParMarg):
             if ParNums[k]>ParNums[pm]:
                 ParNums[k] -= 1
         ParNums.pop(pm, None)
-    #OrKeys = [key for key in ParNums.keys()]
-    #for i,key in enumerate(OrKeys):
-    #            if key in ParMarg:
-    #                for tmp in OrKeys[i::1]:
-    #                    ParNums[tmp] -= 1
-    #                    ParNums.pop(key, None)
-    
+
     return NewMatr, ParNums
 
 
