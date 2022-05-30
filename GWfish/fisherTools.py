@@ -21,7 +21,9 @@ def CovMatr(FisherMatrix,
             invMethodIn='cho', 
             condNumbMax=1e50, 
             truncate=False, svals_thresh=1e-15,  
-            verbose=False):
+            verbose=False,
+            alt_method = 'svd'
+            ):
     
     
         FisherM = FisherMatrix.astype('float128')        
@@ -30,108 +32,120 @@ def CovMatr(FisherMatrix,
         cho_failed = 0
         for k in range(FisherM.shape[-1]): 
             
-        
-            # go to mpmath
-            ff = mpmath.matrix( FisherM[:, :, k].astype('float128'))
             
-            # Conditioning of the original Fisher
-            E, _ = mpmath.eigh(ff)
-            E = onp.array(E.tolist(), dtype=onp.float128)
-
-            if onp.any(E<0) and verbose:
-                print('Matrix is not positive definite!')
-
-            cond = onp.max(onp.abs(E))/onp.min(onp.abs(E))
-            if verbose:
-                print('Condition of original matrix: %s' %cond)
-            
-            try: 
-                # Normalize by the diagonal
-                ws =  mpmath.diag([ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[-2]) ])
-                FisherM_ = ws*ff*ws
-                # Conditioning of the new Fisher
-                EE, _ = mpmath.eigh(FisherM_)
-                E = onp.array(EE.tolist(), dtype=onp.float128)
-                cond = onp.max(onp.abs(E))/onp.min(onp.abs(E))
+            if onp.all(onp.isnan(FisherM[:, :, k])):
                 if verbose:
-                    print('Condition of the new matrix: %s' %cond)
-            except ZeroDivisionError:
-                print('The Fisher matrix has a zero element on the diagonal at position %s. The normalization procedure will not be applied. Consider using a prior.' %k)
-                FisherM_ = ff
-            
-            
-            
-            invMethod = invMethodIn
-            if onp.any(E<0):
-                if verbose:
-                    print('Matrix is not positive definite at position %s!' %k)
-                if invMethodIn=='cho':
-                    cho_failed+=1
-                    invMethod='svd'
-                    if verbose:
-                        print('Cholesky decomposition not usable. Using method %s' %invMethod)
-            elif invMethod=='cho':
+                    print('Fisher is nan at position %s. ' %k)
+                CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
+            else:
+                # go to mpmath
+                ff = mpmath.matrix( FisherM[:, :, k].astype('float128'))
+                
                 try:
-                    # In rare cases, the choleski decomposition still fails even if the eigenvalues are positive...
-                    # likely for very small eigenvalues
-                    c = (mpmath.cholesky(FisherM_))**-1 
+                    # Conditioning of the original Fisher
+                    E, _ = mpmath.eigh(ff)
+                    E = onp.array(E.tolist(), dtype=onp.float128)
+        
+                    if onp.any(E<0) and verbose:
+                        print('Matrix is not positive definite!')
+        
+                    cond = onp.max(onp.abs(E))/onp.min(onp.abs(E))
+                    if verbose:
+                        print('Condition of original matrix: %s' %cond)
+                    
+                    try: 
+                        # Normalize by the diagonal
+                        ws =  mpmath.diag([ 1/mpmath.sqrt(ff[i, i]) for i in range(FisherM.shape[-2]) ])
+                        FisherM_ = ws*ff*ws
+                        # Conditioning of the new Fisher
+                        EE, _ = mpmath.eigh(FisherM_)
+                        E = onp.array(EE.tolist(), dtype=onp.float128)
+                        cond = onp.max(onp.abs(E))/onp.min(onp.abs(E))
+                        if verbose:
+                            print('Condition of the new matrix: %s' %cond)
+                        reweighted=True
+                    except ZeroDivisionError:
+                        print('The Fisher matrix has a zero element on the diagonal at position %s. The normalization procedure will not be applied. Consider using a prior.' %k)
+                        FisherM_ = ff
+                    
+                    
+                    
+                    invMethod = invMethodIn
+                    if onp.any(E<0):
+                        if verbose:
+                            print('Matrix is not positive definite at position %s!' %k)
+                        if invMethodIn=='cho':
+                            cho_failed+=1
+                            invMethod=alt_method
+                            if verbose:
+                                print('Cholesky decomposition not usable. Using method %s' %invMethod)
+                    elif invMethod=='cho':
+                        try:
+                            # In rare cases, the choleski decomposition still fails even if the eigenvalues are positive...
+                            # likely for very small eigenvalues
+                            c = (mpmath.cholesky(FisherM_))**-1 
+                        except Exception as e:
+                            print(e)
+                            invMethod='svd'
+                            print('Cholesky decomposition not usable. Eigenvalues seem ok but cholesky decomposition failed. Using method %s' %invMethod)
+                            #print('Eigenvalues: %s' %str(E))
+                            cho_failed+=1
+        
+                    if invMethod=='inv':
+                            cc = FisherM_**-1
+                    elif invMethod=='cho':
+                            #c = cF**-1 
+                            cc = c.T*c
+                    elif invMethod=='svd':
+                            U, Sm, V = mpmath.svd_r(FisherM_)
+                            S = onp.array(Sm.tolist(), dtype=onp.float128)
+                            if ((truncate) and (onp.abs(cond)>condNumbMax)):
+                                if verbose:
+                                    print('Truncating singular values below %s' %svals_thresh)
+                               
+                                maxev = onp.max(onp.abs(S))                        
+                                Sinv = mpmath.matrix(onp.array([1/s if onp.abs(s)/maxev>svals_thresh else 1/(maxev*svals_thresh) for s in S ]).astype('float128'))
+                                St = mpmath.matrix(onp.array([s if onp.abs(s)/maxev>svals_thresh else maxev*svals_thresh for s in S ]).astype('float128'))
+                                
+                                # Also copute truncated Fisher to quantify inversion error consistently
+                                truncFisher = U*mpmath.diag([s for s in St])*V
+                                truncFisher = (truncFisher+truncFisher.T)/2
+                                FisherMatrix[:, :, k] = onp.array(truncFisher.tolist(), dtype=onp.float128)
+                                
+                                if verbose:
+                                    truncated = onp.abs(S)/maxev<svals_thresh #onp.array([1 if onp.abs(s)/maxev>svals_thresh else 0 for s in S ]
+                                    print('%s singular values truncated' %(truncated.sum()))
+                            else:
+                                Sinv = mpmath.matrix(onp.array([1/s for s in S ]).astype('float128'))
+                                St = S
+                            
+                            cc=V.T*mpmath.diag([s for s in Sinv])*U.T
+                            
+                            
+                            
+                    elif invMethod=='lu':
+                            P, L, U = mpmath.lu(FisherM_)
+                            ll = P*L
+                            llinv = ll**-1
+                            uinv=U**-1
+                            cc = uinv*llinv
+                    
+                    
+                    # Enforce simmetry. 
+                    cc = (cc+cc.T)/2
+                    
+                    if reweighted:
+                        # Undo the reweighting
+                        CovMatr_ = ws*cc*ws
+        
+                    CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=onp.float128)
+                    if verbose:
+                        print()
+                
                 except Exception as e:
+                    # Eigenvalue decomposition failed
                     print(e)
-                    invMethod='svd'
-                    print('Cholesky decomposition not usable. Eigenvalues seem ok but cholesky decomposition failed. Using method %s' %invMethod)
-                    #print('Eigenvalues: %s' %str(E))
-                    cho_failed+=1
-
-            if invMethod=='inv':
-                    cc = FisherM_**-1
-            elif invMethod=='cho':
-                    #c = cF**-1 
-                    cc = c.T*c
-            elif invMethod=='svd':
-                    U, Sm, V = mpmath.svd_r(FisherM_)
-                    S = onp.array(Sm.tolist(), dtype=onp.float128)
-                    if ((truncate) and (onp.abs(cond)>condNumbMax)):
-                        if verbose:
-                            print('Truncating singular values below %s' %svals_thresh)
-                       
-                        maxev = onp.max(onp.abs(S))                        
-                        Sinv = mpmath.matrix(onp.array([1/s if onp.abs(s)/maxev>svals_thresh else 1/(maxev*svals_thresh) for s in S ]).astype('float128'))
-                        St = mpmath.matrix(onp.array([s if onp.abs(s)/maxev>svals_thresh else maxev*svals_thresh for s in S ]).astype('float128'))
-                        
-                        # Also copute truncated Fisher to quantify inversion error consistently
-                        truncFisher = U*mpmath.diag([s for s in St])*V
-                        truncFisher = (truncFisher+truncFisher.T)/2
-                        FisherMatrix[:, :, k] = onp.array(truncFisher.tolist(), dtype=onp.float128)
-                        
-                        if verbose:
-                            truncated = onp.abs(S)/maxev<svals_thresh #onp.array([1 if onp.abs(s)/maxev>svals_thresh else 0 for s in S ]
-                            print('%s singular values truncated' %(truncated.sum()))
-                    else:
-                        Sinv = mpmath.matrix(onp.array([1/s for s in S ]).astype('float128'))
-                        St = S
-                    
-                    cc=V.T*mpmath.diag([s for s in Sinv])*U.T
-                    
-                    
-                    
-            elif invMethod=='lu':
-                    P, L, U = mpmath.lu(FisherM_)
-                    ll = P*L
-                    llinv = ll**-1
-                    uinv=U**-1
-                    cc = uinv*llinv
-            
-            
-            # Enforce simmetry. 
-            cc = (cc+cc.T)/2
-            
-            # Undo the reweighting
-            CovMatr_ = ws*cc*ws
-
-            CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=onp.float128)
-            if verbose:
-                print()
-    
+                    CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
         
         eps = compute_inversion_error(FisherMatrix, CovMatr) #onp.array([ onp.max( onp.abs(CovMatr[:, :, i]@FisherMatrix[:, :, i]-onp.eye(FisherMatrix.shape[0]))) for i in range(FisherMatrix.shape[-1]) ])
 
@@ -139,8 +153,8 @@ def CovMatr(FisherMatrix,
         if verbose:
                 print('Error with %s: %s\n' %(invMethod, eps))
         print(' Inversion error with method %s: min=%s, max=%s, mean=%s, std=%s ' %(invMethodIn, onp.min(eps), onp.max(eps), onp.mean(eps), onp.std(eps)) )
-        print('Method %s not possible on %s non-positive definite matrices, %s was used in those cases. ' %(invMethodIn, cho_failed, 'svd'))
-        return CovMatr#, eps
+        print('Method %s not possible on %s non-positive definite matrices, %s was used in those cases. ' %(invMethodIn, cho_failed, alt_method))
+        return CovMatr , eps
 
 
 
@@ -161,41 +175,52 @@ def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True, verbose=False):
         
         # Being the Fisher symmetric by definition, we can use the numpy.linalg function 'eigh', to speed up a bit
         # The input has size (Npar,Npar,Nev), so we have to swap
+        
+        
+        
         if not use_mpmath:
             evals, evecs = scipy.linalg.eigh(FisherM.transpose(2,0,1))
         else:
             evals = onp.zeros(FisherM.shape[1:][::-1])
             evecs = onp.zeros(FisherM.shape[::-1])
             for k in range(FisherM.shape[-1]):
-                try:
-                    aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
-                    E, ER = mpmath.eigh(aam)
-                    evals[k, :] = onp.array(E, dtype=onp.float128)
-                    evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
-                except Exception as e:
-                    print(e)
-                    print('Trying with scipy')
+                
+                if onp.all(onp.isnan(FisherM[:, :, k])):
+                    if verbose:
+                        print('Fisher is nan at position %s. ' %k)
+                    evals[k, :]=onp.full( FisherM.shape[0] , onp.nan)
+                    evecs[k, :, :]=onp.full( FisherM[:, :, k].shape , onp.nan)
+                else:
+                
                     try:
-                        evals[k, :], evecs[k, :, :] = scipy.linalg.eigh(FisherM[:,:,k])
+                        aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
+                        E, ER = mpmath.eigh(aam)
+                        evals[k, :] = onp.array(E, dtype=onp.float128)
+                        evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
                     except Exception as e:
                         print(e)
-                        print('Event is number %s' %k)
-                        evals[k, :], evecs[k, :, :] = onp.full(FisherM.shape[0], onp.nan, ), onp.full((FisherM.shape[0], FisherM.shape[0]), onp.nan, )
-                        #condNumber = None
-                        print(FisherM[:,:,k])
+                        print('Trying with scipy')
+                        try:
+                            evals[k, :], evecs[k, :, :] = scipy.linalg.eigh(FisherM[:,:,k])
+                        except Exception as e:
+                            print(e)
+                            print('Event is number %s' %k)
+                            evals[k, :], evecs[k, :, :] = onp.full(FisherM.shape[0], onp.nan, ), onp.full((FisherM.shape[0], FisherM.shape[0]), onp.nan, )
+                            #condNumber = None
+                            print(FisherM[:,:,k])
                         
                     
         if onp.any(evals <= 0.):
-            print('WARNING: one or more eigenvalues are negative.')
+            print('WARNING: one or more eigenvalues are negative at position(s) %s' %str( onp.unique(onp.where(evals<0)[0]) ))
         
 
         condNumber = onp.abs(evals).max(axis=1)/onp.abs(evals).min(axis=1)
         
         if onp.any(condNumber>condNumbMax) and verbose:
-            print('WARNING: the condition number is too large (%s>%s)'%(condNumber,condNumbMax) )
-            print('Unreliable covariance at positions ' +str(condNumber>condNumbMax))
+                        print('WARNING: the condition number is too large (%s>%s)'%(condNumber,condNumbMax) )
+                        print('Unreliable covariance at positions ' +str(condNumber>condNumbMax))
         elif verbose:
-            print('Condition number= %s . Ok. '%condNumber)
+                        print('Condition number= %s . Ok. '%condNumber)
         
         return evals, evecs, condNumber
 
@@ -248,7 +273,7 @@ def fixParams(MatrIn, ParNums_inp, ParMarg):
     IdxMarg = onp.sort(onp.array([ParNums[par] for par in ParMarg]))
     newdim = MatrIn.shape[0]-len(IdxMarg)
     
-    NewMatr = onp.zeros( (newdim, newdim, MatrIn.shape[-1]) )
+    NewMatr = onp.full( (newdim, newdim, MatrIn.shape[-1]), onp.NaN )
     
     for k in range(MatrIn.shape[-1]):
     
@@ -258,13 +283,18 @@ def fixParams(MatrIn, ParNums_inp, ParMarg):
         
     # Given that we deleted some rows and columns, 
     # the meaning of the numbers of the remaining ones changes
-        
-    OrKeys = [key for key in ParNums.keys()]
-    for i,key in enumerate(OrKeys):
-                if key in ParMarg:
-                    for tmp in OrKeys[i::1]:
-                        ParNums[tmp] -= 1
-                        ParNums.pop(key, None)
+    
+    for pm in ParMarg:
+        for k in ParNums.keys():
+            if ParNums[k]>ParNums[pm]:
+                ParNums[k] -= 1
+        ParNums.pop(pm, None)
+    #OrKeys = [key for key in ParNums.keys()]
+    #for i,key in enumerate(OrKeys):
+    #            if key in ParMarg:
+    #                for tmp in OrKeys[i::1]:
+    #                    ParNums[tmp] -= 1
+    #                    ParNums.pop(key, None)
     
     return NewMatr, ParNums
 
