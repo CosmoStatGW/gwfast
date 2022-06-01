@@ -7,6 +7,61 @@ config.update("jax_enable_x64", True)
 
 import numpy as np
 import jax.numpy as jnp
+import json
+import h5py
+
+
+
+##############################################################################
+# LOADING AND SAVING CATALOGS
+##############################################################################
+
+
+def get_event(evs, idx):
+    res = {k: np.squeeze(np.array([evs[k][idx], ] )) for k in evs.keys()}
+    try:
+        len(res['Mc'])
+    except:
+        res = {k: np.array( [res[k], ] )  for k in res.keys()}
+    return res
+        
+def get_events_subset(evs, detected):
+    return get_event(evs, np.argwhere(detected))
+
+
+def save_detectors(fname, detectors):
+    
+    with open(fname, 'w') as fp:
+        json.dump(detectors, fp)
+    
+
+def save_data(fname, data, ):
+    
+    print('Saving to %s '%fname)
+    with h5py.File(fname, 'w') as out:
+            
+                    
+        def cd(n, d):
+            d = np.array(d)
+            out.create_dataset(n, data=d, compression='gzip', shuffle=True)
+        
+        for key in data.keys():
+            cd(key, data[key])
+
+def load_population(name, nEventsUse=None):
+
+    events={}
+    with h5py.File(name, 'r') as f:
+        for key in f.keys(): 
+            events[key] = np.array(f[key])
+
+        if nEventsUse is not None:
+            for key in f.keys(): 
+                events[key]=events[key][:nEventsUse]
+            
+    events = check_evparams(events)
+    return events
+
 
 ##############################################################################
 # ANGLES
@@ -250,22 +305,37 @@ def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
 def check_evparams(evParams):
         # Function to check the format of the events' parameters and make the needed conversions
         try:
-            evParams['tcoal']
+            _ = evParams['tcoal']
         except KeyError:
             try:
+                print('Adding tcoal from tGPS')
                 # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
                 evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
             except KeyError:
                 raise ValueError('One among tGPS and tcoal has to be provided.')
         try:
-            evParams['chi1z']
+            _ =evParams['chi1z']
         except KeyError:
             try:
+                print('Adding chi1z, chi2z from chiS, chiA')
                 evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
                 evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
             except KeyError:
-                raise ValueError('Two among chi1z, chi2z and chiS and chiA have to be provided.')
-        
+                raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
+                
+        try:
+            _ = evParams['theta']
+        except KeyError:
+            try:
+                print('Adding theta,phi from ra,dec')
+                evParams['theta'] = np.pi/2-evParams['dec']
+                evParams['phi']=evParams['ra']
+            except KeyError:
+                raise ValueError('Two among theta, phi and ra, dec have to be provided.')
+        return evParams
+                
+                
+             
 
 class RegularGridInterpolator_JAX:
     """

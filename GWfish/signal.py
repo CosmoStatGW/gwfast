@@ -124,6 +124,8 @@ class GWSignal(object):
         onp.random.seed(None)
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
         self.jitCompileDerivs = jitCompileDerivs
+    
+        
         self._init_jax()
         
         

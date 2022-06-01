@@ -3,18 +3,22 @@
 
 import numpy as onp
 import fisherUtils as utils
-import fisherTools
+
+
+
 
 
 class DetNet(object):
     
-    def __init__(self, signals):
+    def __init__(self, signals, verbose=True):
         
         # signals is a dictionary of the form
         # {'detector_name': GWSignal object }
         
         self.signals = signals
+        self.verbose=verbose
     
+
     def _clear_cache(self):
         for d in self.signals.keys():
             self.signals[d]._clear_cache()
@@ -35,17 +39,17 @@ class DetNet(object):
         
     
     def FisherMatr(self, evParams, **kwargs):
-        #self.Fishers = {}
         nparams = self.signals[list(self.signals.keys())[0]].wf_model.nParams
         nevents = len(evParams[list(evParams.keys())[0]])
         totF = onp.zeros((nparams,nparams,nevents))
         utils.check_evparams(evParams)
         for d in self.signals.keys():
-            print('Computing Fisher for %s...' %d)
+            if self.verbose:
+                print('Computing Fisher for %s...' %d)
             totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
-        print('Computing total Fisher ...')
-        #totF = sum(self.Fishers.values())
-        #_, _, _ = fisherTools.CheckFisher(totF)
+        if self.verbose:
+            print('Computing total Fisher ...')
+        
         print('Done.')
         return totF
 
