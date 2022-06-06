@@ -1205,7 +1205,7 @@ class GWSignal(object):
             Fp, Fc = self._PatternFunction(theta, phi, t=tc, psi=0)
             return -np.sqrt(Fp**2 + Fc**2)
         # we actually minimize the pattern function times -1, which is the same as maximizing it
-        return minimize(pattern_fixedtpsi, [0.,0.]).x
+        return minimize(pattern_fixedtpsi, [1.,1.], bounds=((0.,onp.pi), (0.,2.*onp.pi))).x
     
     def SNRFastInsp(self, evParams, checkInterp=False):
         # This module allows to compute the inspiral SNR taking into account Earth rotation, without the need 

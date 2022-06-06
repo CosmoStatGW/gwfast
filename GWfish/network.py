@@ -3,9 +3,7 @@
 
 import numpy as onp
 import fisherUtils as utils
-
-
-
+from scipy.optimize import minimize, basinhopping
 
 
 class DetNet(object):
@@ -54,10 +52,9 @@ class DetNet(object):
         return totF
 
     def optimal_location(self, tcoal, is_tGPS=False):
-        # WARNING: The estimate provided by this function works only if the detectors in the network have comparable characteristics.
+        # WARNING: The estimate provided by this function works only if the detectors in the network have comparable characteristics, see the paper for discussion.
         # Function to compute the optimal theta and phi for a signal to be seen by the detector network at a given GMST. The boolean is_tGPS can be used to specify whether the provided time is a GPS time rather than a GMST, so that it will be converted.
         # Even if considering Earth rotation, the highest SNR will still be obtained if the source is in the optimal location close to the merger.
-        from scipy.optimize import minimize
         
         if is_tGPS:
             tc = utils.GPSt_to_LMST(tcoal, lat=0., long=0.)
@@ -78,4 +75,9 @@ class DetNet(object):
                     tmpsum = tmpsum + (Fp**2 + Fc**2)
             return -onp.sqrt(tmpsum)
         # we actually minimize the total pattern function times -1, which is the same as maximizing it
-        return minimize(pattern_fixedtpsi, [0.,0.]).x
+        if len(self.signals.keys())==1:
+            # For a single detector all the maxima will correspond to the same value, i.e. 1 for an L and 1.5 for a triangle, thus a single minimization is sufficient
+            return minimize(pattern_fixedtpsi, [1.,1.], bounds=((0.,onp.pi), (0.,2.*onp.pi))).x
+        else:
+            # For a network the minima can be different, thus to find the global one we use the basin-hopping method. Given the small interval, we find 50 iterations sufficient, but this can be easily changed
+            return basinhopping(pattern_fixedtpsi, [1.,1.], niter=50, minimizer_kwargs={'bounds':((0.,onp.pi), (0.,2.*onp.pi))}).x
