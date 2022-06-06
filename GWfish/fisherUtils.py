@@ -202,6 +202,10 @@ def GPSt_to_LMST(t_GPS, lat, long):
   from astropy.coordinates import EarthLocation
   import astropy.time as aspyt
   import astropy.units as u
+  # Uncomment the next two lines in case of troubles with IERS
+  #import astropy
+  #astropy.utils.iers.conf.iers_degraded_accuracy='ignore'
+  
   loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
   t = aspyt.Time(t_GPS, format='gps', location=(loc))
   LMST = t.sidereal_time('mean').value
