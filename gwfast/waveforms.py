@@ -26,7 +26,7 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.
 sys.path.append(SCRIPT_DIR)
 
 
-import fisherGlobals as glob
+import gwfastGlobals as glob
 import gwfastUtils as utils
 
 ##############################################################################

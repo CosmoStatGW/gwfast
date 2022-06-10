@@ -22,8 +22,8 @@ import copy
 import numpy as onp
 import argparse
 
-import gwfast.fisherGlobals as glob
-from gwfast.fisherGlobals import detectors as base_dets
+import gwfast.gwfastGlobals as glob
+from gwfast.gwfastGlobals import detectors as base_dets
 from gwfast.waveforms import TaylorF2_RestrictedPN, IMRPhenomD, IMRPhenomHM, IMRPhenomD_NRTidalv2, IMRPhenomNSBH
 from gwfast.signal import GWSignal
 from gwfast.network import DetNet

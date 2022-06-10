@@ -26,7 +26,7 @@ import time
 import h5py
 
 import gwfastUtils as utils
-import fisherGlobals as glob
+import gwfastGlobals as glob
 
 
 
