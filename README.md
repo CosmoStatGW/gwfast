@@ -38,9 +38,9 @@ gwfast/runs/
 
 ## Summary
 
-* [Usage](https://github.com/CosmoStatGW/WF4Py#Usage)
-* [Installation](https://github.com/CosmoStatGW/WF4Py#Installation)
-* [Example](https://github.com/CosmoStatGW/WF4Py#Available-models)
+* [Usage](https://github.com/CosmoStatGW/gwfast#Usage)
+* [Installation](https://github.com/CosmoStatGW/gwfast#Installation)
+* [Citation](https://github.com/CosmoStatGW/gwfast#Citation)
 
 
 ## Usage

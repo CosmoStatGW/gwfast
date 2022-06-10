@@ -11,9 +11,9 @@ setuptools.setup(
     description='A fisher matrix python package for GW studies',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/CosmoStatGW/...',
+    url='https://github.com/CosmoStatGW/gwfast',
     license='GNU GPLv3',
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
-    install_requires=['numpy', 'jax', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools'],
+    install_requires=['numpy', 'jax', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools', 'multiprocessing', 'schwimmbad'],
 )

@@ -1,5 +1,5 @@
 #
-#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#    Copyright (c) 2022 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
 #
 #    All rights reserved. Use of this source code is governed by the
 #    license that can be found in the LICENSE file.
@@ -322,7 +322,7 @@ class GWSignal(object):
     def _phiDoppler(self, theta, phi, t, f):
         
         
-        phiD = 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)
+        phiD = -2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)
         # This contribution to the magnitude is negligilbe, so we neglect it, but leave it here for checks
         #ddot_phiD = ((2.*np.pi)**3)*f*(glob.REarth/glob.clight)*np.sin(theta)*np.cos(2.*np.pi*t - phi)/((3600.*24)**2.) # This contribution to the amplitude is negligible
         
