@@ -1,5 +1,5 @@
-# GWFAST
-Fisher package for GW cosmology, written in pure Python and using automatic differentiation.
+# gwfast
+Fisher Information Matrix package for GW cosmology, written in Python and based on automatic differentiation.
 
 The detail of implementations and results can be found in the papers [1](<>) and [2](<>).
 
@@ -11,7 +11,7 @@ Developed by [Francesco Iacovelli](<https://github.com/FrancescoIacovelli>) and 
 The organisation of the repository is the following:
 
 ```
-GWFAST/GWFAST/
+gwfast/gwfast/
 			├── Globals.py 
 					Physical constants, positions and duty cycles of existing detectors
 			├── utils.py
@@ -25,11 +25,14 @@ GWFAST/GWFAST/
 			├── network.py
 					A class to model a network of detectors with different locations
 
-GWFAST/psds/ 
+gwfast/psds/ 
 			Some detector Power Spectral Densities 
 			
-GWFAST/WFfiles/ 
+gwfast/WFfiles/ 
 			Text files needed for waveform computation
+			
+gwfast/runs/
+			Script to run in parallel on catalogs
 						
 ```
 
@@ -80,12 +83,11 @@ CovMatr(FisherMatrs, events)
 ```
 
 ## Installation
-To install the package without cloning the git repository simply run
+To install the package without cloning the git repository 
 ```
-pip install git+https://github.com/CosmoStatGW/...
+pip install git+https://github.com/CosmoStatGW/gwfast
 ```
 
-## Example 
-Here we report the cumulative distributions of SNRs and parameter errors for a population of 100'000 BBH events as seen by a network consisting of LIGO, Virgo and KAGRA, ET alone and ET+2CE
+## Citation
 
-![alt text](<https://github.com/CosmoStatGW/.../blob/master/AllCumulBBH.png>)
+If using this software, please cite this repository and the papers [1](<>) and [2](<>).

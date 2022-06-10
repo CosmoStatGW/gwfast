@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#
+#    All rights reserved. Use of this source code is governed by the
+#    license that can be found in the LICENSE file.
 
 import numpy as onp
-import fisherUtils as utils
+import gwfastUtils as utils
 from scipy.optimize import minimize, basinhopping
 
 

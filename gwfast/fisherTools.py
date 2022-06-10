@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#
+#    All rights reserved. Use of this source code is governed by the
+#    license that can be found in the LICENSE file.
+
 
 import os
 os.environ['XLA_FLAGS'] = '--xla_force_host_platform_device_count=8'
@@ -131,7 +135,7 @@ def CovMatr(FisherMatrix,
                             cc = uinv*llinv
                     
                     
-                    # Enforce simmetry. 
+                    # Enforce symmetry. 
                     cc = (cc+cc.T)/2
                     
                     if reweighted:
@@ -478,7 +482,7 @@ def compute_localization_region(Cov, parNum, thFid, perc_level=90, units='SqDeg'
     
     # From Barak, Cutler, PRD 69, 082005 (2004), gr-qc/0310125
     DelOmegaSr_base = 2*onp.pi*onp.sqrt(DelThSq*DelPhiSq-DelThDelPhi**2)*onp.abs(onp.sin(thFid))
-    #DelOmegaSr_base = 2*onp.pi*onp.sqrt(np.linalg.det(Cov_th_ph))*onp.abs(onp.sin(thFid))
+    
 
     DelOmegaSr =  - DelOmegaSr_base*onp.log(1-perc_level/100)
     

@@ -1,5 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#
+#    All rights reserved. Use of this source code is governed by the
+#    license that can be found in the LICENSE file.
 
 
 from jax.config import config
@@ -203,8 +206,8 @@ def GPSt_to_LMST(t_GPS, lat, long):
   import astropy.time as aspyt
   import astropy.units as u
   # Uncomment the next two lines in case of troubles with IERS
-  #import astropy
-  #astropy.utils.iers.conf.iers_degraded_accuracy='ignore'
+  import astropy
+  astropy.utils.iers.conf.iers_degraded_accuracy='ignore'
   
   loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
   t = aspyt.Time(t_GPS, format='gps', location=(loc))

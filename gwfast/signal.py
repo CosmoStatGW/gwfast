@@ -1,5 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#
+#    All rights reserved. Use of this source code is governed by the
+#    license that can be found in the LICENSE file.
 
 import os
 import jax
@@ -12,7 +15,7 @@ config.update("jax_enable_x64", True)
 
 os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'       
 os.environ['XLA_PYTHON_CLIENT_ALLOCATOR']='platform'
-#os.environ["TF_CPP_MIN_LOG_LEVEL"]='0'
+
 
 # We use both the original numpy, denoted as onp, and the JAX implementation of numpy, denoted as np
 import numpy as onp
@@ -22,7 +25,7 @@ from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
 import h5py
 
-import fisherUtils as utils
+import gwfastUtils as utils
 import fisherGlobals as glob
 
 

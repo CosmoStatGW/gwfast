@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+#
+#    Copyright (c) 2021 Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>
+#
+#    All rights reserved. Use of this source code is governed by the
+#    license that can be found in the LICENSE file.
+
 import os
 import jax
 
@@ -23,7 +27,7 @@ sys.path.append(SCRIPT_DIR)
 
 
 import fisherGlobals as glob
-import fisherUtils as utils
+import gwfastUtils as utils
 
 ##############################################################################
 # WaveFormModel CLASS DEFINITION
