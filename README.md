@@ -83,11 +83,15 @@ CovMatr(FisherMatrs, events)
 ```
 
 ## Installation
-To install the package without cloning the git repository 
+To install the package without cloning the git repository, and a CPU-only version of JAX 
+
 ```
+pip install --upgrade pip
+pip install --upgrade "jax[cpu]" 
 pip install git+https://github.com/CosmoStatGW/gwfast
 ```
 
+To install a JAX version for GPU or TPU proceed as explained in [https://github.com/google/jax#installation](<https://github.com/google/jax#installation>).
 ## Citation
 
 If using this software, please cite this repository and the papers [1](<>) and [2](<>).

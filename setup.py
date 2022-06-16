@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='...',
+    name='gwfast',
     version='1.0.0',
     author='Francesco Iacovelli, Michele Mancarella',
     author_email='francesco.iacovelli@unige.ch, michele.mancarella@unige.ch',
@@ -15,5 +15,5 @@ setuptools.setup(
     license='GNU GPLv3',
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
-    #install_requires=['numpy', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools', 'schwimmbad'],
+    install_requires=['numpy', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools', 'schwimmbad'],
 )
