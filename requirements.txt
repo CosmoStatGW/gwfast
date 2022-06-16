@@ -6,5 +6,4 @@ h5py
 mpmath
 matplotlib
 numdifftools
-multiprocessing
 schwimmbad

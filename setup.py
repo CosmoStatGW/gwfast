@@ -15,5 +15,5 @@ setuptools.setup(
     license='GNU GPLv3',
     python_requires='>=3.7',
     packages=setuptools.find_packages(),
-    install_requires=['numpy', 'jax', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools', 'multiprocessing', 'schwimmbad'],
+    install_requires=['numpy', 'jax', 'scipy', 'astropy', 'h5py', 'mpmath', 'matplotlib', 'numdifftools', 'schwimmbad'],
 )
