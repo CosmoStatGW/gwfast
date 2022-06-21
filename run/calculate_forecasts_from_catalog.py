@@ -475,7 +475,7 @@ if __name__ =='__main__':
     parser.add_argument("--wf_model",  default='tf2', type=str, required=False)
     parser.add_argument("--batch_size", default=1, type=int, required=False)
     parser.add_argument("--npools", default=1, type=int, required=False)
-    parser.add_argument("--snr_th", default=12, type=int, required=False)
+    parser.add_argument("--snr_th", default=12., type=float, required=False)
     parser.add_argument("--idx_in", default=0, type=int, required=False)
     parser.add_argument("--idx_f", default=None, type=int, required=False)
     parser.add_argument("--fmin", default=2., type=float, required=False)
@@ -492,6 +492,9 @@ if __name__ =='__main__':
     
 
     FLAGS = parser.parse_args()
+
+    if FLAGS.duty_factor == 1.:
+        FLAGS.duty_factor=None
     
     print('Input arguments: %s' %str(FLAGS))
     

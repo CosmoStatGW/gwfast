@@ -1083,7 +1083,7 @@ class GWSignal(object):
             ampP_phider = wfhp*Fp_phider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             ampC_phider = wfhc*Fc_phider*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
         
-            phiD_phideriv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.-2.*np.pi*locDt_phider)
+            phiD_phideriv = -2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.-2.*np.pi*locDt_phider)
             phiL_phideriv = 2.*np.pi*f*locDt_phider*(3600.*24.)
             
             return ampP_phider + 1j*(phiD_phideriv + phiL_phideriv)*hp + ampC_phider + 1j*(phiD_phideriv + phiL_phideriv)*hc
@@ -1126,7 +1126,7 @@ class GWSignal(object):
             
             ampP_thder = wfhp*Fp_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             ampC_thder = wfhc*Fc_thder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
-            phiD_thderiv = 2.*np.pi*f*(glob.REarth/glob.clight)*np.cos(theta)*np.cos(2.*np.pi*t - phi) - 2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*2.*np.pi*locDt_thder
+            phiD_thderiv = -2.*np.pi*f*(glob.REarth/glob.clight)*np.cos(theta)*np.cos(2.*np.pi*t - phi) - -2.*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*2.*np.pi*locDt_thder
             phiL_thderiv = 2.*np.pi*f*locDt_thder*(3600.*24.)
             
             return ampP_thder + 1j*(phiD_thderiv + phiL_thderiv)*hp + ampC_thder + 1j*(phiD_thderiv + phiL_thderiv)*hc
@@ -1168,7 +1168,7 @@ class GWSignal(object):
             
             ampP_tcder = wfhp*Fp_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             ampC_tcder = wfhc*Fc_tcder*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
-            phiD_tcderiv = -4.*np.pi*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.+locDt_tcder)
+            phiD_tcderiv = 4.*np.pi*np.pi*f*(glob.REarth/glob.clight)*np.sin(theta)*np.sin(2.*np.pi*t - phi)*(1.+locDt_tcder)
             phiL_tcderiv = 2.*np.pi*f*locDt_tcder*(3600.*24.)
 
             return ampP_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hp + ampC_tcder + 1j*(phiD_tcderiv + phiL_tcderiv + 2.*np.pi*f*3600.*24.)*hc
