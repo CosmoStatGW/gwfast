@@ -5,7 +5,7 @@
 #    license that can be found in the LICENSE file.
 
 import numpy as onp
-import gwfastUtils as utils
+from gwfast import gwfastUtils as utils
 from scipy.optimize import minimize, basinhopping
 
 

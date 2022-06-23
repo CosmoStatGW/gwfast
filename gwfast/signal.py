@@ -25,8 +25,8 @@ from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
 import h5py
 
-import gwfastUtils as utils
-import gwfastGlobals as glob
+from gwfast import gwfastUtils as utils
+from gwfast import gwfastGlobals as glob
 
 
 
