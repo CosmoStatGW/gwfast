@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import json
 import h5py
 
-
+from gwfast import gwfastGlobals as glob
 
 ##############################################################################
 # LOADING AND SAVING CATALOGS
@@ -193,6 +193,215 @@ def Lam12_from_Lamt_delLam(Lamt, delLam, eta):
         return Lambda1, Lambda2
 
 ##############################################################################
+# MASSES
+##############################################################################
+
+def m1m2_from_Mceta(Mc, eta):
+    # Function to compute the component masses of a binary given its chirp mass and symmetric mass ratio
+    Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+    m1 = 0.5*(Mc/(eta**(3./5.)))*(1. + Seta)
+    m2 = 0.5*(Mc/(eta**(3./5.)))*(1. - Seta)
+
+    return m1, m2
+
+##############################################################################
+# SPINS
+##############################################################################
+
+def zrot(angle, vx, vy, vz):
+    # Function to perofrm a rotation of the components of a vector around the z axis by a given angle
+    tmp = vx*np.cos(angle) - vy*np.sin(angle)
+    yy  = vx*np.sin(angle) + vy*np.cos(angle)
+    xx  = tmp
+    return xx, yy, vz
+
+def yrot(angle, vx, vy, vz):
+    # Function to perofrm a rotation of the components of a vector around the y axis by a given angle
+    tmp = vx*np.cos(angle) + vz*np.sin(angle)
+    zz  = - vx*np.sin(angle) + vz*np.cos(angle)
+    xx  = tmp
+    return xx, vy, zz
+
+def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1, chi2, Mc, eta, fRef, phiRef):
+    # Computes the components of the spin in cartesian frame given the angular variables
+    # Adapted from LALSimInspiral.c, function XLALSimInspiralTransformPrecessingNewInitialConditions, line 5885.
+    # The input masses in this case are Mc (in units of Msun) and eta
+    # For a scheme of the conventions, see https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html
+    '''
+    thetaJN is the inclination between total angular momentum (J) and the direction of propagation
+            (so that thetaJN -> iota for S_{1}+S_{2} -> 0).
+    phiJL is the azimuthal angle of L_N on its cone about J.
+    theta1 and theta2 are the inclinations (tilt angles) of S_{1,2} measured from the Newtonian orbital angular momentum (L_N).
+    phi12 is the difference in azimuthal angles of S_{1,2}.
+    chi1, chi2 are the dimensionless spin magnitudes.
+    '''
+    
+    LNhx = 0.
+    LNhy = 0.
+    LNhz = 1.
+
+    s1hatx = np.sin(theta1)*np.cos(phiRef)
+    s1haty = np.sin(theta1)*np.sin(phiRef)
+    s1hatz = np.cos(theta1)
+    s2hatx = np.sin(theta2) * np.cos(phi12+phiRef)
+    s2haty = np.sin(theta2) * np.sin(phi12+phiRef)
+    s2hatz = np.cos(theta2)
+
+    m1, m2 = m1m2_from_Mceta(Mc, eta)
+    M = m1+m2
+    v0 = np.cbrt(M * glob.GMsun_over_c3 * np.pi * fRef)
+
+    # Define S1, S2, J with proper magnitudes
+    Lmag = (M*M*eta/v0)*(1. + v0*v0*(1.5 + eta/6.))
+    
+    s1x = m1 * m1 * chi1 * s1hatx
+    s1y = m1 * m1 * chi1 * s1haty
+    s1z = m1 * m1 * chi1 * s1hatz
+    s2x = m2 * m2 * chi2 * s2hatx
+    s2y = m2 * m2 * chi2 * s2haty
+    s2z = m2 * m2 * chi2 * s2hatz
+    Jx = s1x + s2x
+    Jy = s1y + s2y
+    Jz = Lmag + s1z + s2z
+
+    # Normalize J to Jhat, find its angles in starting frame
+
+    Jnorm = np.sqrt(Jx*Jx + Jy*Jy + Jz*Jz)
+    Jhatx = Jx / Jnorm
+    Jhaty = Jy / Jnorm
+    Jhatz = Jz / Jnorm
+    theta0 = np.arccos(Jhatz)
+    phi0 = np.arctan2(Jhaty, Jhatx)
+    
+    # Rotation 1: Rotate about z-axis by -phi0 to put Jhat in x-z plane
+    s1hatx, s1haty, s1hatz = zrot(-phi0, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = zrot(-phi0, s2hatx, s2haty, s2hatz)
+
+    # Rotation 2: Rotate about new y-axis by -theta0 to put Jhat along z-axis
+    LNhx, LNhy, LNhz       = yrot(-theta0, LNhx, LNhy, LNhz)
+    s1hatx, s1haty, s1hatz = yrot(-theta0, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = yrot(-theta0, s2hatx, s2haty, s2hatz)
+
+    # Rotation 3: Rotate about new z-axis by phiJL to put L at desired azimuth about J.
+    # Note that is currently in x-z plane towards -x (i.e. azimuth=pi). Hence we rotate about z by phiJL - pi
+    LNhx, LNhy, LNhz       = zrot(phiJL - np.pi, LNhx, LNhy, LNhz)
+    s1hatx, s1haty, s1hatz = zrot(phiJL - np.pi, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = zrot(phiJL - np.pi, s2hatx, s2haty, s2hatz)
+    
+    # The cosine of the angle between L and N is the scalar product of the two vectors, no further rotation needed
+    
+    Nx=0.
+    Ny=np.sin(thetaJN)
+    Nz=np.cos(thetaJN)
+    iota=np.arccos(Nx*LNhx+Ny*LNhy+Nz*LNhz)
+
+    # Rotation 4-5: Now J is along z and N in y-z plane, inclined from J by thetaJN and with >ve component along y.
+    # Now we bring L into the z axis to get spin components.
+    thetaLJ = np.arccos(LNhz)
+    phiL    = np.arctan2(LNhy, LNhx)
+    
+    s1hatx, s1haty, s1hatz = zrot(-phiL, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = zrot(-phiL, s2hatx, s2haty, s2hatz)
+    Nx, Ny, Nz             = zrot(-phiL, Nx, Ny, Nz)
+    
+    s1hatx, s1haty, s1hatz = yrot(-thetaLJ, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = yrot(-thetaLJ, s2hatx, s2haty, s2hatz)
+    Nx, Ny, Nz             = yrot(-thetaLJ, Nx, Ny, Nz)
+    
+    # Rotation 6: Now L is along z and we have to bring N in the y-z plane with >ve y components.
+    
+    phiN = np.arctan2(Ny, Nx)
+    
+    s1hatx, s1haty, s1hatz = zrot(np.pi/2.-phiN-phiRef, s1hatx, s1haty, s1hatz)
+    s2hatx, s2haty, s2hatz = zrot(np.pi/2.-phiN-phiRef, s2hatx, s2haty, s2hatz)
+    
+    S1x = s1hatx*chi1
+    S1y = s1haty*chi1
+    S1z = s1hatz*chi1
+    S2x = s2hatx*chi2
+    S2y = s2haty*chi2
+    S2z = s2hatz*chi2
+    
+    return iota, S1x, S1y, S1z, S2x, S2y, S2z
+
+def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta, fRef, phiRef):
+    # Inverse of TransformPrecessing_angles2comp
+    # Computes the angular variables of the spins given the components in cartesian frame
+    # Adapted from LALSimInspiral.c, function XLALSimInspiralTransformPrecessingWvf2PE, line 6105.
+    # The input masses in this case are Mc (in units of Msun) and eta
+    # For the conventions, see https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html
+    
+    LNhx = 0.
+    LNhy = 0.
+    LNhz = 1.
+    chi1 = np.sqrt(S1x*S1x + S1y*S1y + S1z*S1z)
+    chi2 = np.sqrt(S2x*S2x + S2y*S2y + S2z*S2z)
+    
+    s1hatx = np.where(chi1>0., S1x/(chi1), 0.)
+    s1haty = np.where(chi1>0., S1y/(chi1), 0.)
+    s1hatz = np.where(chi1>0., S1z/(chi1), 0.)
+    s2hatx = np.where(chi2>0., S2x/(chi2), 0.)
+    s2haty = np.where(chi2>0., S2y/(chi2), 0.)
+    s2hatz = np.where(chi2>0., S2z/(chi2), 0.)
+    
+    phi1 = np.arctan2(s1haty, s1hatx)
+    phi2 = np.arctan2(s2haty, s2hatx)
+    
+    phi12 = np.where(phi2 - phi1 < 0., 2.*np.pi + (phi2 - phi1), phi2 - phi1)
+    
+    theta1 = np.arccos(s1hatz)
+    theta2 = np.arccos(s2hatz)
+    
+    m1, m2 = m1m2_from_Mceta(Mc, eta)
+    M = m1+m2
+    v0 = np.cbrt(M * glob.GMsun_over_c3 * np.pi * fRef)
+    # Define S1, S2, J with proper magnitudes
+    Lmag = (M*M*eta/v0)*(1. + v0*v0*(1.5 + eta/6.))
+    
+    s1x = m1 * m1 * S1x
+    s1y = m1 * m1 * S1y
+    s1z = m1 * m1 * S1z
+    s2x = m2 * m2 * S2x
+    s2y = m2 * m2 * S2y
+    s2z = m2 * m2 * S2z
+    Jx = s1x + s2x
+    Jy = s1y + s2y
+    Jz = Lmag*LNhz + s1z + s2z
+    
+    # Normalize J to Jhat, find its angles in starting frame
+    
+    Jnorm = np.sqrt(Jx*Jx + Jy*Jy + Jz*Jz)
+    Jhatx = Jx / Jnorm
+    Jhaty = Jy / Jnorm
+    Jhatz = Jz / Jnorm
+    thetaJL = np.arccos(Jhatz)
+    phiJ    = np.arctan2(Jhaty, Jhatx)
+    
+    phiO = np.pi/2. - phiRef
+    Nx = np.sin(iota)*np.cos(phiO);
+    Ny = np.sin(iota)*np.sin(phiO);
+    Nz = np.cos(iota)
+    
+    thetaJN = np.arccos(Jhatx*Nx + Jhaty*Ny + Jhatz*Nz)
+    
+    # The easiest way to define the phiJL is to rotate to the frame where J is along z and N is in the y-z plane
+    Nx, Ny, Nz = zrot(-phiJ, Nx, Ny, Nz)
+    Nx, Ny, Nz = yrot(-thetaJL, Nx, Ny, Nz)
+    
+    LNhx, LNhy, LNhz = zrot(-phiJ, LNhx, LNhy, LNhz)
+    LNhx, LNhy, LNhz = yrot(-thetaJL, LNhx, LNhy, LNhz)
+    
+    phiN = np.arctan2(Ny, Nx)
+    
+    # After rotation defined below N should be in y-z plane inclined by thetaJN to J=z
+    LNhx, LNhy, LNhz = zrot(np.pi/2. - phiN, LNhx, LNhy, LNhz)
+    
+    phiJL = np.arctan2(LNhy, LNhx)
+    phiJL = np.where(phiJL<0., phiJL+2.*np.pi, phiJL)
+    
+    return thetaJN, phiJL, theta1, theta2, phi12, chi1, chi2
+    
+##############################################################################
 # TIMES
 ##############################################################################
 
@@ -320,15 +529,15 @@ def check_evparams(evParams):
                 evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
             except KeyError:
                 raise ValueError('One among tGPS and tcoal has to be provided.')
-        try:
-            _ =evParams['chi1z']
-        except KeyError:
-            try:
-                print('Adding chi1z, chi2z from chiS, chiA')
-                evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
-                evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
-            except KeyError:
-                raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
+        #try:
+        #    _ =evParams['chi1z']
+        #except KeyError:
+        #    try:
+        #        print('Adding chi1z, chi2z from chiS, chiA')
+        #        evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
+        #        evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
+        #    except KeyError:
+        #        raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
                 
         try:
             _ = evParams['theta']

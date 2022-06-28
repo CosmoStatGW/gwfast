@@ -29,6 +29,12 @@ sys.path.append(SCRIPT_DIR)
 from gwfast import gwfastGlobals as glob
 from gwfast import gwfastUtils as utils
 
+try:
+    import lal
+    import lalsimulation as lalsim
+except ModuleNotFoundError:
+    print('LSC Algorithm Library (LAL) is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
+
 ##############################################################################
 # WaveFormModel CLASS DEFINITION
 ##############################################################################
@@ -38,7 +44,7 @@ class WaveFormModel(ABC):
     Abstract class to compute waveforms
     '''
     
-    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=False):
+    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=False, is_Precessing=False, is_LAL=False, is_prec_ang=False):
         # The kind of system the wf model is made for, can be 'BBH', 'BNS' or 'NSBH'
         self.objType = objType 
         # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun). The method fcut can be redefined, as e.g. in the IMRPhenomD implementation, and fcutPar can be passed as an adimensional frequency (Mf)
@@ -50,21 +56,45 @@ class WaveFormModel(ABC):
         self.is_HigherModes = is_HigherModes
         self.nParams = 11
         self.is_chi1chi2 = is_chi1chi2
+        self.is_Precessing = is_Precessing
+        self.is_LAL = is_LAL
         
         if is_newtonian:
             # In the Newtonian case eta and the spins are not included in the Fisher, since they do not enter the signal
             self.ParNums = {'Mc':0, 'dL':1, 'theta':2, 'phi':3, 'iota':4, 'psi':5, 'tcoal':6, 'Phicoal':7}
             self.nParams = 8
-        if is_tidal:
+        if (is_Precessing) and (is_tidal):
+            self.ParNums = {'Mc':0, 'eta':1, 'dL':2, 'theta':3, 'phi':4, 'iota':5, 'psi':6, 'tcoal':7, 'Phicoal':8, 'chi1z':9,  'chi2z':10, 'chi1x':11, 'chi2x':12, 'chi1y':13, 'chi2y':14, 'LambdaTilde':15, 'deltaLambda':16}
+            self.nParams = 17
+        elif (is_tidal) and (not is_Precessing):
             # Note that the Fisher is computed for LabdaTilde and deltaLambda, but the waveforms accept as input only Lambda1 and Lambda2
             self.ParNums['LambdaTilde']=11
             self.ParNums['deltaLambda']=12
             self.nParams = 13
-        if is_chi1chi2:
+        elif (not is_tidal) and (is_Precessing):
+            self.ParNums = {'Mc':0, 'eta':1, 'dL':2, 'theta':3, 'phi':4, 'iota':5, 'psi':6, 'tcoal':7, 'Phicoal':8, 'chi1z':9,  'chi2z':10, 'chi1x':11, 'chi2x':12, 'chi1y':13, 'chi2y':14}
+            self.nParams = 15
+        if (not is_Precessing) and (is_chi1chi2):
             self.ParNums['chi1z'] = self.ParNums['chiS']
             self.ParNums['chi2z'] = self.ParNums['chiA']
             self.ParNums.pop('chiS')
             self.ParNums.pop('chiA')
+        if (is_Precessing) and (is_prec_ang):
+            self.ParNums['chi1']  = self.ParNums['chi1z']
+            self.ParNums['chi2']  = self.ParNums['chi2z']
+            self.ParNums['tilt1'] = self.ParNums['chi1x']
+            self.ParNums['tilt2'] = self.ParNums['chi2x']
+            self.ParNums['phiJL'] = self.ParNums['chi1y']
+            self.ParNums['phi12'] = self.ParNums['chi2y']
+            self.ParNums['thetaJN'] = self.ParNums['iota']
+            
+            self.ParNums.pop('chi1z')
+            self.ParNums.pop('chi2z')
+            self.ParNums.pop('chi1x')
+            self.ParNums.pop('chi2x')
+            self.ParNums.pop('chi1y')
+            self.ParNums.pop('chi2y')
+            self.ParNums.pop('iota')
     @abstractmethod    
     def Phi(self, f, **kwargs): 
         # The frequency of the GW, as a function of frequency
@@ -110,6 +140,161 @@ class NewtInspiral(WaveFormModel):
         
         amplitude = np.sqrt(5./24.) * (np.pi**(-2./3.)) * glob.clightGpc/kwargs['dL'] * (glob.GMsun_over_c3*kwargs['Mc'])**(5./6.) * (f**(-7./6.))
         return amplitude
+
+##############################################################################
+# WRAPPER FOR LAL WAVEFORMS
+##############################################################################
+
+class LAL_WF(WaveFormModel):
+    '''
+    Wrapper for using LAL waveforms. Note that this does not work with JAX computation of derivatives.
+    
+    NOTE: as a defualt, we use the LAL function SimInspiralChooseFDWaveformSequence, which computes the waveform on a
+    given frequency grid. However, this shows numerical issues with some waveform models (e.g. IMRPhenomXHM), we thus
+    also give the possibility to use the function SimInspiralChooseFDWaveform which appears more stable. This performs
+    the computation on a LAL defined grid, which then has to be interpolated, resulting in less accurate evaluation at
+    low frequencies and slower execution time.
+    This can be chosen with the boolean compute_sequence: setting it to True means that the function will perform
+    the computation direclty on the user gris, setting it to False it will let LAL choose the grid and then extrapolate
+    
+    '''
+    
+    def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False,  compute_sequence=True, **kwargs):
+        
+        if is_tidal:
+            objectT = 'BNS'
+        else:
+            objectT = 'BBH'
+        # approx_name will be filled with the names of all Fourier-domain approximants available in LAL
+        approx_name = []
+        for approx_enum in range(0, lalsim.NumApproximants):
+            if lalsim.SimInspiralImplementedFDApproximants(approx_enum):
+                approx_name.append(lalsim.GetStringFromApproximant(approx_enum))
+        if approximant not in approx_name:
+            raise ValueError('The chosen waveform is not available in LALSimulation, choose one among \n%s'%"\n".join(approx_name))
+            
+        self.approx = lalsim.GetApproximantFromString(approximant)
+        
+        self.compute_sequence = compute_sequence
+        if not compute_sequence:
+            self.delta_f_base = 1./32.
+            
+        super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_LAL=True, **kwargs)
+    
+    def Phi(self, f, **kwargs):
+        
+        hps, _ = self.hphc(f, **kwargs)
+        
+        return np.unwrap(np.angle(hps))
+
+    def Ampl(self, f, **kwargs):
+        
+        hps, _ = self.hphc(f, **kwargs)
+        
+        return abs(hps)
+    
+    def hphc(self, f, **kwargs):
+                
+        m1, m2 = utils.m1m2_from_Mceta(kwargs['Mc'], kwargs['eta'])
+        
+        if not self.is_Precessing:
+            chi1x, chi2x, chi1y, chi2y = m1*0., m1*0., m1*0., m1*0.
+        else:
+            chi1x, chi2x, chi1y, chi2y = kwargs['chi1x'], kwargs['chi2x'], kwargs['chi1y'], kwargs['chi2y']
+        
+        if not self.is_tidal:
+            lambda1, lambda2 = m1*0., m1*0.
+        else:
+            lambda1, lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
+        
+        if (self.is_HigherModes) or (self.is_Precessing):
+            iota = kwargs['iota']
+        else:
+            iota = m1*0.
+                
+        def LALSimeval(fgrid, m1, m2, chi1x, chi2x, chi1y, chi2y, chi1z, chi2z, dL, iota, lambda1, lambda2):
+            # Initialize dictionary for extra parameters (e.g. tidal deformabilities)
+            lal_pars = lal.CreateDict()
+            
+            if self.is_tidal:
+                lalsim.SimInspiralWaveformParamsInsertTidalLambda1(lal_pars, lambda1)
+                lalsim.SimInspiralWaveformParamsInsertTidalLambda2(lal_pars, lambda2)
+            
+            if self.compute_sequence:
+                # Here we perform the computation directly on the input grid, which has to be initialized in a LAL readable array
+                LAL_frequency_array = lal.CreateREAL8Vector(len(fgrid))
+                LAL_frequency_array.data = fgrid
+                # Call LAL
+                hp, hc = lalsim.SimInspiralChooseFDWaveformSequence(0., # We add the phase in signal.py
+                                                                    m1*glob.uMsun, m2*glob.uMsun,
+                                                                    chi1x, chi1y, chi1z,
+                                                                    chi2x, chi2y, chi2z,
+                                                                    0., # reference frequency, set to 0 for convenience, internally it will be chosen as the minimum frequency of the grid
+                                                                    dL*glob.uGpc,
+                                                                    iota, # inclination
+                                                                    lal_pars,
+                                                                    self.approx,
+                                                                    LAL_frequency_array)
+            
+                return hp.data.data, hc.data.data
+                
+            else:
+                fmin, fmax = float(np.amin(fgrid)), float(np.amax(fgrid))
+                # Check that the grid has enough resolution to allow extrapolation
+                if (fmax-fmin)/self.delta_f_base > 4.*len(fgrid):
+                    delta_f = float(self.delta_f_base)
+                else:
+                    delta_f = float((fmax-fmin)/(4.*len(fgrid)))
+                
+                hp, hc = lalsim.SimInspiralChooseFDWaveform(m1=m1*glob.uMsun, m2=m2*glob.uMsun,
+                                                            S1x = chi1x, S1y = chi1y, S1z = chi1z,
+                                                            S2x = chi2x, S2y = chi2y, S2z = chi2z,
+                                                            distance = dL*glob.uGpc, inclination = iota,
+                                                            phiRef = 0., longAscNodes=0., eccentricity=0.,
+                                                            meanPerAno = 0., deltaF=delta_f, f_min=fmin-delta_f,
+                                                            f_max=fmax, f_ref=fmin, LALpars=lal_pars,
+                                                            approximant=self.approx)
+                
+                # In this case the waveform is computed on a grid produced by LAL,
+                # starting from 0 and with spacing delta_f. As in PyCBC, given that an interpolation
+                # would be problematic due to the rapidly oscillating nature of the function, we output the
+                # waveforms at the nearest point for which the evaluation has been performed.
+                # This provides a better extrapolation if the LAL grid has sufficient resolution.
+                
+                # In PyCBC, this is implemented in pycbc.types.frequencyseries -> FrequencySeries.at_at_frequency
+                
+                # Given that the grid starts from 0 and has spacing delta_f, the closest point to a given
+                # frequency fst will be at the index fst/delta_f of the LAL array.
+                tmp = (fgrid/delta_f).astype('int')
+                print(tmp.shape)
+                return hp.data.data[(fgrid/delta_f).astype('int')], hc.data.data[(fgrid/delta_f).astype('int')]
+        
+        hps, hcs = onp.zeros_like(f).astype('complex64'), onp.zeros_like(f).astype('complex64')
+        # Here the for is unavoidable
+            
+        for i in range(len(m1)):
+            hps[:,i], hcs[:,i] = LALSimeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])))
+        
+        return hps, hcs
+    
+    def tau_star(self, f, **kwargs):
+        # We use the expression in arXiv:0907.0700 eq. (3.8b)
+        Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
+        v = (np.pi*Mtot_sec*f)**(1./3.)
+        eta = kwargs['eta']
+        eta2 = eta*eta
+        
+        OverallFac = 5./256 * Mtot_sec/(eta*(v**8.))
+        
+        t05 = 1. + (743./252. + 11./3.*eta)*(v*v) - 32./5.*np.pi*(v*v*v) + (3058673./508032. + 5429./504.*eta + 617./72.*eta2)*(v**4) - (7729./252. - 13./3.*eta)*np.pi*(v**5)
+        t6  = (- 10052469856691./23471078400. + 128./3.*np.pi*np.pi + 6848./105.*np.euler_gamma + (3147553127./3048192. - 451./12.*np.pi*np.pi)*eta - 15211./1728.*eta2 + 25565./1296.*eta2*eta + 3424./105.*np.log(16.*v*v))*(v**6)
+        t7  = (- 15419335./127008. - 75703./756.*eta + 14809./378.*eta2)*np.pi*(v**7)
+        
+        return OverallFac*(t05 + t6 + t7)
+    
+    def fcut(self, **kwargs):
+        
+        return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
 # TAYLORF2 3.5 RESTRICTED PN WAVEFORM
