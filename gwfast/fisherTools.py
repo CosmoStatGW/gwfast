@@ -29,7 +29,9 @@ def CovMatr(FisherMatrix,
             alt_method = 'svd'
             ):
     
-    
+        FisherMatrixOr = copy.deepcopy(FisherMatrix)
+        
+        reweighted=False
         FisherM = FisherMatrix.astype('float128')        
         CovMatr = onp.zeros(FisherMatrix.shape).astype('float128')
         
@@ -114,7 +116,7 @@ def CovMatr(FisherMatrix,
                                 # Also copute truncated Fisher to quantify inversion error consistently
                                 truncFisher = U*mpmath.diag([s for s in St])*V
                                 truncFisher = (truncFisher+truncFisher.T)/2
-                                FisherMatrix[:, :, k] = onp.array(truncFisher.tolist(), dtype=onp.float128)
+                                FisherMatrixOr[:, :, k] = onp.array(truncFisher.tolist(), dtype=onp.float128)
                                 
                                 if verbose:
                                     truncated = onp.abs(S)/maxev<svals_thresh #onp.array([1 if onp.abs(s)/maxev>svals_thresh else 0 for s in S ]
@@ -141,6 +143,8 @@ def CovMatr(FisherMatrix,
                     if reweighted:
                         # Undo the reweighting
                         CovMatr_ = ws*cc*ws
+                    else:
+                        CovMatr_ = cc
         
                     CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=onp.float128)
                     if verbose:
@@ -152,7 +156,7 @@ def CovMatr(FisherMatrix,
                     CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
 
         
-        eps = compute_inversion_error(FisherMatrix, CovMatr) 
+        eps = compute_inversion_error(FisherMatrixOr, CovMatr) 
 
         if verbose:
                 print('Error with %s: %s\n' %(invMethod, eps))
