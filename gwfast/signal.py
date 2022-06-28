@@ -24,6 +24,7 @@ from jax.interpreters import xla
 from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
 import h5py
+from numdifftools.step_generators import MaxStepGenerator
 
 from gwfast import gwfastUtils as utils
 from gwfast import gwfastGlobals as glob
@@ -833,7 +834,7 @@ class GWSignal(object):
     
     
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=1e-9, methodNDT='central'):
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
         if self.verbose:
             print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM
