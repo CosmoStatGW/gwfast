@@ -24,6 +24,7 @@ from jax.interpreters import xla
 from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
 import h5py
+import numdifftools as ndt
 from numdifftools.step_generators import MaxStepGenerator
 
 from gwfast import gwfastUtils as utils
@@ -129,8 +130,10 @@ class GWSignal(object):
         self.seedUse = onp.random.randint(2**32 - 1, size=1)
         self.jitCompileDerivs = jitCompileDerivs
     
-        
-        self._init_jax()
+        if not self.wf_model.is_LAL:
+            self._init_jax()
+        else:
+            self._SignalDerivatives_use = self._SignalDerivatives
         
         
     def _init_jax(self):
@@ -837,9 +840,8 @@ class GWSignal(object):
     def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
         if self.verbose:
             print('Computing derivatives...')
-        # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal (faster) and to compute the derivative of the real functions composing it. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM
+        # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM or precessing spins.
         
-        #Mc=1, eta=2, dL=3, theta=4, phi=5, iota=6, psi=7, tcoal=8, Phicoal=9, chiS=10, chiA=11, chi1x=12, chi2x=13, chi1y=14, chi2y=15, LambdaTilde=16, deltaLambda=17,
         if self.wf_model.is_newtonian:
             print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
             
@@ -872,7 +874,6 @@ class GWSignal(object):
             
             FisherDerivs = np.asarray(vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda))
         else:
-            import numdifftools as nd
             if self.wf_model.is_newtonian:
                 if computeAnalyticalDeriv:
                     GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
@@ -919,7 +920,7 @@ class GWSignal(object):
                             GWstrainUse = lambda pars: self.GWstrain(fgrids, pars[0], pars[1], dL, theta, phi, pars[2], psi, tcoal, Phicoal, pars[3], pars[4], chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2)
                             evpars = [Mc, eta, iota, chiS, chiA]
                             
-            dh = nd.Jacobian(GWstrainUse, step=stepNDT, method=methodNDT, order=2, n=1)
+            dh = ndt.Jacobian(GWstrainUse, step=stepNDT, method=methodNDT, order=2, n=1)
             FisherDerivs = np.asarray(dh(evpars))
             if len(Mc) == 1:
                 FisherDerivs = FisherDerivs[:,:,np.newaxis]

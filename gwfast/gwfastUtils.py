@@ -240,8 +240,8 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
     LNhy = 0.
     LNhz = 1.
 
-    s1hatx = np.sin(theta1)*np.cos(phiRef)
-    s1haty = np.sin(theta1)*np.sin(phiRef)
+    s1hatx = np.sin(theta1) * np.cos(phiRef)
+    s1haty = np.sin(theta1) * np.sin(phiRef)
     s1hatz = np.cos(theta1)
     s2hatx = np.sin(theta2) * np.cos(phi12+phiRef)
     s2haty = np.sin(theta2) * np.sin(phi12+phiRef)
@@ -249,7 +249,7 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
 
     m1, m2 = m1m2_from_Mceta(Mc, eta)
     M = m1+m2
-    v0 = np.cbrt(M * glob.GMsun_over_c3 * np.pi * fRef)
+    v0 = (M * glob.GMsun_over_c3 * np.pi * fRef)**(1./3.)
 
     # Define S1, S2, J with proper magnitudes
     Lmag = (M*M*eta/v0)*(1. + v0*v0*(1.5 + eta/6.))
@@ -271,7 +271,7 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
     Jhaty = Jy / Jnorm
     Jhatz = Jz / Jnorm
     theta0 = np.arccos(Jhatz)
-    phi0 = np.arctan2(Jhaty, Jhatx)
+    phi0 = np.arctan2(np.real(Jhaty), np.real(Jhatx))
     
     # Rotation 1: Rotate about z-axis by -phi0 to put Jhat in x-z plane
     s1hatx, s1haty, s1hatz = zrot(-phi0, s1hatx, s1haty, s1hatz)
@@ -298,7 +298,7 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
     # Rotation 4-5: Now J is along z and N in y-z plane, inclined from J by thetaJN and with >ve component along y.
     # Now we bring L into the z axis to get spin components.
     thetaLJ = np.arccos(LNhz)
-    phiL    = np.arctan2(LNhy, LNhx)
+    phiL    = np.arctan2(np.real(LNhy), np.real(LNhx))
     
     s1hatx, s1haty, s1hatz = zrot(-phiL, s1hatx, s1haty, s1hatz)
     s2hatx, s2haty, s2hatz = zrot(-phiL, s2hatx, s2haty, s2hatz)
@@ -310,7 +310,7 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
     
     # Rotation 6: Now L is along z and we have to bring N in the y-z plane with >ve y components.
     
-    phiN = np.arctan2(Ny, Nx)
+    phiN = np.arctan2(np.real(Ny), np.real(Nx))
     
     s1hatx, s1haty, s1hatz = zrot(np.pi/2.-phiN-phiRef, s1hatx, s1haty, s1hatz)
     s2hatx, s2haty, s2hatz = zrot(np.pi/2.-phiN-phiRef, s2hatx, s2haty, s2hatz)
@@ -344,8 +344,8 @@ def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta,
     s2haty = np.where(chi2>0., S2y/(chi2), 0.)
     s2hatz = np.where(chi2>0., S2z/(chi2), 0.)
     
-    phi1 = np.arctan2(s1haty, s1hatx)
-    phi2 = np.arctan2(s2haty, s2hatx)
+    phi1 = np.arctan2(np.real(s1haty), np.real(s1hatx))
+    phi2 = np.arctan2(np.real(s2haty), np.real(s2hatx))
     
     phi12 = np.where(phi2 - phi1 < 0., 2.*np.pi + (phi2 - phi1), phi2 - phi1)
     
@@ -354,7 +354,7 @@ def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta,
     
     m1, m2 = m1m2_from_Mceta(Mc, eta)
     M = m1+m2
-    v0 = np.cbrt(M * glob.GMsun_over_c3 * np.pi * fRef)
+    v0 = (M * glob.GMsun_over_c3 * np.pi * fRef)**(1./3.)#np.cbrt(M * glob.GMsun_over_c3 * np.pi * fRef)
     # Define S1, S2, J with proper magnitudes
     Lmag = (M*M*eta/v0)*(1. + v0*v0*(1.5 + eta/6.))
     
@@ -375,7 +375,7 @@ def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta,
     Jhaty = Jy / Jnorm
     Jhatz = Jz / Jnorm
     thetaJL = np.arccos(Jhatz)
-    phiJ    = np.arctan2(Jhaty, Jhatx)
+    phiJ    = np.arctan2(np.real(Jhaty), np.real(Jhatx))
     
     phiO = np.pi/2. - phiRef
     Nx = np.sin(iota)*np.cos(phiO);
@@ -391,12 +391,12 @@ def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta,
     LNhx, LNhy, LNhz = zrot(-phiJ, LNhx, LNhy, LNhz)
     LNhx, LNhy, LNhz = yrot(-thetaJL, LNhx, LNhy, LNhz)
     
-    phiN = np.arctan2(Ny, Nx)
+    phiN = np.arctan2(np.real(Ny), np.real(Nx))
     
     # After rotation defined below N should be in y-z plane inclined by thetaJN to J=z
     LNhx, LNhy, LNhz = zrot(np.pi/2. - phiN, LNhx, LNhy, LNhz)
     
-    phiJL = np.arctan2(LNhy, LNhx)
+    phiJL = np.arctan2(np.real(LNhy), np.real(LNhx))
     phiJL = np.where(phiJL<0., phiJL+2.*np.pi, phiJL)
     
     return thetaJN, phiJL, theta1, theta2, phi12, chi1, chi2

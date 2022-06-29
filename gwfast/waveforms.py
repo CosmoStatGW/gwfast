@@ -236,7 +236,7 @@ class LAL_WF(WaveFormModel):
                                                                     self.approx,
                                                                     LAL_frequency_array)
             
-                return hp.data.data, hc.data.data
+                return np.array(hp.data.data), np.array(hc.data.data)
                 
             else:
                 fmin, fmax = float(np.amin(fgrid)), float(np.amax(fgrid))
@@ -265,15 +265,17 @@ class LAL_WF(WaveFormModel):
                 
                 # Given that the grid starts from 0 and has spacing delta_f, the closest point to a given
                 # frequency fst will be at the index fst/delta_f of the LAL array.
-                tmp = (fgrid/delta_f).astype('int')
-                print(tmp.shape)
-                return hp.data.data[(fgrid/delta_f).astype('int')], hc.data.data[(fgrid/delta_f).astype('int')]
+                idxs = np.array((fgrid/delta_f).astype('int'))
+                return np.array(hp.data.data)[idxs], np.array(hc.data.data)[idxs]
         
         hps, hcs = onp.zeros_like(f).astype('complex64'), onp.zeros_like(f).astype('complex64')
-        # Here the for is unavoidable
-            
-        for i in range(len(m1)):
-            hps[:,i], hcs[:,i] = LALSimeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])))
+        
+        if m1.ndim==0:
+            hps, hcs = LALSimeval(np.real(f[:]), float(np.real(m1)), float(np.real(m2)), float(np.real(chi1x)), float(np.real(chi2x)), float(np.real(chi1y)), float(np.real(chi2y)), float(np.real(kwargs['chi1z'])), float(np.real(kwargs['chi2z'])), float(np.real(kwargs['dL'])), float(np.real(iota)), float(np.real(lambda1)), float(np.real(lambda2)))
+        else:
+            # Here the for is unavoidable
+            for i in range(len(m1)):
+                hps[:,i], hcs[:,i] = LALSimeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])))
         
         return hps, hcs
     
