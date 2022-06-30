@@ -413,8 +413,7 @@ class GWSignal(object):
         
         if is_m1m2:
             # Interpret Mc as m1 and eta as m2
-            McUse  = ((Mc*eta)**(3./5.))/((Mc+eta)**(1./5.))
-            etaUse = (Mc*eta)/((Mc+eta)**(2.))
+            McUse, etaUse = utils.Mceta_from_m1m2(Mc, eta)
         else:
             McUse  = Mc
             etaUse = eta
@@ -950,8 +949,7 @@ class GWSignal(object):
         # Module to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal, Phicoal and also iota in absence of HM. Each derivative is inserted into its own function with representative name, for ease of check.
         if use_m1m2:
             # Interpret Mc as m1 and eta as m2
-            McUse  = ((Mc*eta)**(3./5.))/((Mc+eta)**(1./5.))
-            etaUse = (Mc*eta)/((Mc+eta)**(2.))
+            McUse, etaUse = utils.Mceta_from_m1m2(Mc, eta)
         else:
             McUse  = Mc
             etaUse = eta

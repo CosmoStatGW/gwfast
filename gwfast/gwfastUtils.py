@@ -203,6 +203,13 @@ def m1m2_from_Mceta(Mc, eta):
     m2 = 0.5*(Mc/(eta**(3./5.)))*(1. - Seta)
 
     return m1, m2
+    
+def Mceta_from_m1m2(m1, m2):
+    # Function to compute the chirp mass and symmetric mass ratio of a binary given its component masses
+    Mc  = ((m1*m2)**(3./5.))/((m1+m2)**(1./5.))
+    eta = (m1*m2)/((m1+m2)*(m1+m2))
+    
+    return Mc, eta
 
 ##############################################################################
 # SPINS
