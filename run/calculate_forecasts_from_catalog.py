@@ -30,6 +30,11 @@ from gwfast.network import DetNet
 from gwfast.fisherTools import compute_localization_region, fixParams, CheckFisher, CovMatr, compute_inversion_error
 from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population
 
+try:
+    import lal
+    from gwfast.waveforms import LAL_WF
+except ModuleNotFoundError:
+    print('LSC Algorithm Library (LAL) is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
 
 
 #####################################################################################
@@ -374,9 +379,19 @@ def main(idx, FLAGS):
         ti=  time.time()
 
         Net = get_net(FLAGS)
-
-        wf_model = wf_models_dict[ FLAGS.wf_model]
-        wf_model_name =  type(wf_model).__name__
+        if FLAGS.wf_model.split('-')[0] !=  'LAL':
+            wf_model = wf_models_dict[ FLAGS.wf_model]
+            wf_model_name =  type(wf_model).__name__
+        else:
+            is_tidal, is_prec, is_HM = False, False, False
+            if 'tidal' in FLAGS.lalargs:
+                is_tidal = True
+            if 'precessing' in FLAGS.lalargs:
+                is_prec = True
+            if 'HM' in FLAGS.lalargs:
+                is_HM = True
+            wf_model = LAL_WF(FLAGS.wf_model.split('-')[1], is_tidal=is_tidal, is_HigherModes=is_HM, is_Precessing=is_prec)
+            wf_model_name = FLAGS.wf_model
         
         dname = FLAGS.fout.split('/')[-1]
         if dname=='':
@@ -489,7 +504,7 @@ if __name__ =='__main__':
     parser.add_argument("--concatenate", default=1, type=int, required=False)
     parser.add_argument("--params_fix", nargs='+', default=[ ], type=str, required=False)
     parser.add_argument("--rot", default=1, type=int, required=False)
-    
+    parser.add_argument("--lalargs", nargs='+', default=[ ], type=str, required=False)
 
     FLAGS = parser.parse_args()
 

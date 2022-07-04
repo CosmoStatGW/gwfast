@@ -27,11 +27,12 @@ GMsun_over_c3 = 4.925491025543575903411922162094833998e-6 # seconds
 GMsun_over_c2 = 1.476625061404649406193430731479084713e3 # meters
 uGpc = 3.085677581491367278913937957796471611e25 # meters
 uMsun = 1.988409902147041637325262574352366540e30 # kg
+uAU = 149597870.7 # km
 GMsun_over_c2_Gpc = GMsun_over_c2/uGpc # Gpc
 
-REarth = 6371.00 #km
+REarth = 6371.00 # km
         
-clight = 2.99792458*(10**5) #km/s
+clight = 2.99792458e5 # km/s
 clightGpc = clight/3.0856778570831e+22
 
 

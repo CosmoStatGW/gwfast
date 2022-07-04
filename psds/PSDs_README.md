@@ -1,17 +1,15 @@
 # GWFast/psds
 We here list the sources of the available Power Spectral Densities, PSDs, or Amplitude Spectral Densities, ASDs available in GWFast, in alphabetical order
 
-### ce_curves/
-ASDs used for the paper [*Listening to the Universe with Next Generation Ground-Based Gravitational-Wave Detectors*, S. Borhanian, B. S. Sathyaprakash](https://arxiv.org/abs/2202.11048)
-
-Available at [https://dcc.cosmicexplorer.org/public/0163/T2000007/005/](https://dcc.cosmicexplorer.org/public/0163/T2000007/005/) inside the *ce_curves.zip* file, in the *strain* folder.
+### ce\_strain/
+Cosmic Explorer ASDs from [*Science-Driven Tunable Design of Cosmic Explorer Detectors*](https://arxiv.org/abs/2201.10668), available at [https://dcc.cosmicexplorer.org/cgi-bin/DocDB/ShowDocument?.submit=Identifier&docid=T2000017&version=](https://dcc.cosmicexplorer.org/cgi-bin/DocDB/ShowDocument?.submit=Identifier&docid=T2000017&version=).
 
 The folder contains ASDs for:
 
-* Advanced LIGO, Advanced Virgo and KAGRA detectors during their *Advanced plus* stage; 
-* LIGO Voyager; 
-* CE detectors, with different lengths;
-* Einstein Telescope.
+* the baseline 40km detector (```cosmic_explorer```)
+* the baseline 20 km detector compact binary tuned (```cosmic_explorer_20km```)
+* the 20 km detector tuned for post-merger signals (```cosmic_explorer_20km_pm```)
+* the 40 km detector tuned for low-freqency signals (```cosmic_explorer_40km_lf```)
 
 ### ET-0000A-18.txt
 Public [ET-D](https://arxiv.org/abs/1012.0908) sensnitivity curve. 
