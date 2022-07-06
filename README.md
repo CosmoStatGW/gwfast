@@ -12,9 +12,9 @@ The organisation of the repository is the following:
 
 ```
 gwfast/gwfast/
-			├── Globals.py 
+			├── gwfastGlobals.py 
 					Physical constants, positions and duty cycles of existing detectors
-			├── utils.py
+			├── gwfastUtils.py
 					Auxiliary functions: angles and time conversions, ...
 			├── waveforms.py
 					Abstract class WaveFormModel; different sublasses for each wf model - TaylorF2, IMRPhenomD, ...
@@ -31,7 +31,7 @@ gwfast/psds/
 gwfast/WFfiles/ 
 			Text files needed for waveform computation
 			
-gwfast/runs/
+gwfast/run/
 			Script to run in parallel on catalogs
 						
 ```
@@ -92,6 +92,8 @@ pip install git+https://github.com/CosmoStatGW/gwfast
 ```
 
 To install a JAX version for GPU or TPU proceed as explained in [https://github.com/google/jax#installation](<https://github.com/google/jax#installation>).
+
+
 ## Citation
 
 If using this software, please cite this repository and the papers [1](<>) and [2](<>).
