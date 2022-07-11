@@ -51,8 +51,8 @@ wf_models_dict = {'IMRPhenomD':IMRPhenomD(),
                   'tf2':TaylorF2_RestrictedPN(is_tidal=False, use_3p5PN_SpinHO=True),
                   'IMRPhenomD_NRTidalv2': IMRPhenomD_NRTidalv2(),
                   'tf2_tidal':TaylorF2_RestrictedPN(is_tidal=True, use_3p5PN_SpinHO=True),
-                  'IMRPhenomNSBH':IMRPhenomNSBH()
-                  
+                  'IMRPhenomNSBH':IMRPhenomNSBH(),
+                  'tf2_ecc':TaylorF2_RestrictedPN(is_tidal=False, use_3p5PN_SpinHO=True, is_eccentric=True),
                   }
 
 
@@ -390,7 +390,9 @@ def main(idx, FLAGS):
                 is_prec = True
             if 'HM' in FLAGS.lalargs:
                 is_HM = True
-            wf_model = LAL_WF(FLAGS.wf_model.split('-')[1], is_tidal=is_tidal, is_HigherModes=is_HM, is_Precessing=is_prec)
+            if 'eccentric' in FLAGS.lalargs:
+                is_ecc = True
+            wf_model = LAL_WF(FLAGS.wf_model.split('-')[1], is_tidal=is_tidal, is_HigherModes=is_HM, is_Precessing=is_prec, is_eccentric=is_ecc)
             wf_model_name = FLAGS.wf_model
         
         dname = FLAGS.fout.split('/')[-1]

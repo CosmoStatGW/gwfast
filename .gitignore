@@ -9,6 +9,7 @@ calculate_fishers_from_catalog_parallel.py
 data/
 results/
 plots/
+psds/ce_curves
 notebooks/Plots_Fishers.ipynb
 notebooks/IMRPhenomHM_nofor.ipynb
 GWfish/tests

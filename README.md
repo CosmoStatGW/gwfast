@@ -1,7 +1,7 @@
 # gwfast
 Fisher Information Matrix package for GW cosmology, written in Python and based on automatic differentiation.
 
-The detail of implementations and results can be found in the papers [1](<>) and [2](<>).
+The detail of implementations and results can be found in the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [2](<>).
 
 Waveforms are also separatley released as [WF4Py](<https://github.com/CosmoStatGW/WF4Py>).
 
@@ -96,4 +96,4 @@ To install a JAX version for GPU or TPU proceed as explained in [https://github.
 
 ## Citation
 
-If using this software, please cite this repository and the papers [1](<>) and [2](<>).
+If using this software, please cite this repository and the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [2](<>).
