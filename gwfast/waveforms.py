@@ -228,7 +228,7 @@ class LAL_WF(WaveFormModel):
             lambda1, lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
         
         if not self.is_eccentric:
-            ecc = 0.
+            ecc = m1*0.
         else:
             ecc = kwargs['ecc']
         

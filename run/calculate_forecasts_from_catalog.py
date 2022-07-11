@@ -383,7 +383,7 @@ def main(idx, FLAGS):
             wf_model = wf_models_dict[ FLAGS.wf_model]
             wf_model_name =  type(wf_model).__name__
         else:
-            is_tidal, is_prec, is_HM = False, False, False
+            is_tidal, is_prec, is_HM, is_ecc = False, False, False, False
             if 'tidal' in FLAGS.lalargs:
                 is_tidal = True
             if 'precessing' in FLAGS.lalargs:
