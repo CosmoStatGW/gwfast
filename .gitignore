@@ -22,3 +22,4 @@ notebooks/optimal_orientation.ipynb
 notebooks/Results_check.ipynb
 notebooks/Check_Signal_with_precession.ipynb
 notebooks/Checks_LAL_wrap.ipynb
+run/sample_fisher.py

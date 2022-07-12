@@ -175,7 +175,7 @@ class LAL_WF(WaveFormModel):
     
     '''
     
-    def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False, is_eccentric=False, compute_sequence=True, **kwargs):
+    def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False, is_eccentric=False, compute_sequence=True, fRef_ecc=None, **kwargs):
         
         if is_tidal:
             objectT = 'BNS'
@@ -198,7 +198,7 @@ class LAL_WF(WaveFormModel):
             
         if not self.compute_sequence:
             self.delta_f_base = 1./32.
-            
+        self.fRef_ecc = fRef_ecc
         super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_eccentric=is_eccentric, is_LAL=True, **kwargs)
     
     def Phi(self, f, **kwargs):
@@ -246,8 +246,11 @@ class LAL_WF(WaveFormModel):
                 lalsim.SimInspiralWaveformParamsInsertTidalLambda2(lal_pars, lambda2)
                 
             if self.is_eccentric:
-                lalsim.SimInspiralWaveformParamsInsertEccentricityFreq(lal_pars, float(np.amin(fgrid)))
-            
+                if self.fRef_ecc is None:
+                    lalsim.SimInspiralWaveformParamsInsertEccentricityFreq(lal_pars, float(np.amin(fgrid)))
+                else:
+                    lalsim.SimInspiralWaveformParamsInsertEccentricityFreq(lal_pars, float(self.fRef_ecc))
+                    
             if self.compute_sequence:
                 # Here we perform the computation directly on the input grid, which has to be initialized in a LAL readable array
                 LAL_frequency_array = lal.CreateREAL8Vector(len(fgrid))
@@ -296,15 +299,10 @@ class LAL_WF(WaveFormModel):
                 idxs = np.array((fgrid/delta_f).astype('int'))
                 return np.array(hp.data.data)[idxs], np.array(hc.data.data)[idxs]
         
-        hps, hcs = onp.zeros_like(f).astype('complex64'), onp.zeros_like(f).astype('complex64')
-        
-        if m1.ndim==0:
-            hps, hcs = LALSimeval(np.real(f[:]), float(np.real(m1)), float(np.real(m2)), float(np.real(chi1x)), float(np.real(chi2x)), float(np.real(chi1y)), float(np.real(chi2y)), float(np.real(kwargs['chi1z'])), float(np.real(kwargs['chi2z'])), float(np.real(kwargs['dL'])), float(np.real(iota)), float(np.real(lambda1)), float(np.real(lambda2)), float(np.real(ecc)))
-        else:
-            # Here the for is unavoidable
-            for i in range(len(m1)):
-                hps[:,i], hcs[:,i] = LALSimeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])), float(np.real(ecc[i])))
-        
+        LALfun = lambda f, pars : LALSimeval(f, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12])
+        resLAL = np.array(list(map(LALfun, np.real(f.T), np.real(np.array([m1, m2, chi1x, chi2x, chi1y, chi2y, kwargs['chi1z'], kwargs['chi2z'], kwargs['dL'], kwargs['iota'], lambda1, lambda2, ecc]).T))))
+        hps, hcs = resLAL[:,0,:].T, resLAL[:,1,:].T
+                
         return hps, hcs
     
     def tau_star(self, f, **kwargs):
