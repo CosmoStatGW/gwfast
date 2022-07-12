@@ -299,9 +299,17 @@ class LAL_WF(WaveFormModel):
                 idxs = np.array((fgrid/delta_f).astype('int'))
                 return np.array(hp.data.data)[idxs], np.array(hc.data.data)[idxs]
         
-        LALfun = lambda f, pars : LALSimeval(f, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12])
-        resLAL = np.array(list(map(LALfun, np.real(f.T), np.real(np.array([m1, m2, chi1x, chi2x, chi1y, chi2y, kwargs['chi1z'], kwargs['chi2z'], kwargs['dL'], kwargs['iota'], lambda1, lambda2, ecc]).T))))
-        hps, hcs = resLAL[:,0,:].T, resLAL[:,1,:].T
+        hps, hcs = onp.zeros_like(f).astype('complex64'), onp.zeros_like(f).astype('complex64')
+        
+        if m1.ndim==0:
+            hps, hcs = LALSimeval(np.real(f[:]), float(np.real(m1)), float(np.real(m2)), float(np.real(chi1x)), float(np.real(chi2x)), float(np.real(chi1y)), float(np.real(chi2y)), float(np.real(kwargs['chi1z'])), float(np.real(kwargs['chi2z'])), float(np.real(kwargs['dL'])), float(np.real(iota)), float(np.real(lambda1)), float(np.real(lambda2)), float(np.real(ecc)))
+        else:
+            for i in range(len(m1)):
+                hps[:,i], hcs[:,i] = LALSimeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])), float(np.real(ecc[i])))
+        # The following implementation with map and lambda is faster but shows major issues when using multiprocessing
+        #LALfun = lambda f, pars : LALSimeval(f, pars[0], pars[1], pars[2], pars[3], pars[4], pars[5], pars[6], pars[7], pars[8], pars[9], pars[10], pars[11], pars[12])
+        #resLAL = np.array(list(map(LALfun, np.real(f.T), np.real(np.array([m1, m2, chi1x, chi2x, chi1y, chi2y, kwargs['chi1z'], kwargs['chi2z'], kwargs['dL'], kwargs['iota'], lambda1, lambda2, ecc]).T))))
+        #hps, hcs = resLAL[:,0,:].T, resLAL[:,1,:].T
                 
         return hps, hcs
     
