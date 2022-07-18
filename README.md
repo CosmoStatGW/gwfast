@@ -1,7 +1,7 @@
 # gwfast
 Fisher Information Matrix package for GW cosmology, written in Python and based on automatic differentiation.
 
-The detail of implementations and results can be found in the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [2](<>).
+The detail of implementations and results can be found in the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>).
 
 Waveforms are also separatley released as [WF4Py](<https://github.com/CosmoStatGW/WF4Py>).
 
@@ -96,4 +96,28 @@ To install a JAX version for GPU or TPU proceed as explained in [https://github.
 
 ## Citation
 
-If using this software, please cite this repository and the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [2](<>).
+If using this software, please cite this repository and the papers [arXiv:2207.02771](<https://arxiv.org/abs/2207.02771>) and [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>). Bibtex:
+
+```
+@article{Iacovelli:2022bbs,
+    author = "Iacovelli, Francesco and Mancarella, Michele and Foffa, Stefano and Maggiore, Michele",
+    title = "{Forecasting the detection capabilities of third-generation gravitational-wave detectors using GWFAST}",
+    eprint = "2207.02771",
+    archivePrefix = "arXiv",
+    primaryClass = "gr-qc",
+    month = "7",
+    year = "2022"
+}
+```
+
+```
+@article{Iacovelli:2022mbg,
+    author = "Iacovelli, Francesco and Mancarella, Michele and Foffa, Stefano and Maggiore, Michele",
+    title = "{Supplement to "Forecasting the detection capabilities of third-generation gravitational-wave detectors using GWFAST": how to GWFAST}",
+    eprint = "2207.06910",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.IM",
+    month = "7",
+    year = "2022"
+}
+```
