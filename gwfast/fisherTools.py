@@ -46,12 +46,10 @@ def CovMatr(FisherMatrix,
             else:
                 # go to mpmath
                 ff = mpmath.matrix( FisherM[:, :, k].astype('float128'))
-                
                 try:
                     # Conditioning of the original Fisher
                     E, _ = mpmath.eigh(ff)
                     E = onp.array(E.tolist(), dtype=onp.float128)
-        
                     if onp.any(E<0) and verbose:
                         print('Matrix is not positive definite!')
         
@@ -75,7 +73,6 @@ def CovMatr(FisherMatrix,
                         FisherM_ = ff
                     
                     
-                    
                     invMethod = invMethodIn
                     if onp.any(E<0):
                         if verbose:
@@ -92,7 +89,7 @@ def CovMatr(FisherMatrix,
                             c = (mpmath.cholesky(FisherM_))**-1 
                         except Exception as e:
                             print(e)
-                            invMethod='svd'
+                            invMethod=alt_method
                             print('Cholesky decomposition not usable. Eigenvalues seem ok but cholesky decomposition failed. Using method %s' %invMethod)
                             #print('Eigenvalues: %s' %str(E))
                             cho_failed+=1
@@ -127,7 +124,19 @@ def CovMatr(FisherMatrix,
                             
                             cc=V.T*mpmath.diag([s for s in Sinv])*U.T
                             
+                    elif invMethod=='svd_reg':
+                        
+                            U, Sm, V = mpmath.svd_r(FisherM_)
                             
+                            S = onp.squeeze(onp.array(Sm.tolist(), dtype=onp.float128))
+                            Um = onp.array(U.tolist(), dtype=onp.float128)
+                            Vm = onp.array(V.tolist(), dtype=onp.float128)
+      
+                            kVal = sum(S > svals_thresh)
+                                                        
+                            Sinv = mpmath.matrix(onp.array([1/s  for s in S ]).astype('float128'))                            
+                            cc = mpmath.matrix(Um[:, 0:kVal] @ onp.diag(1. / S[0:kVal]) @ Vm[0:kVal, :])
+                                                    
                             
                     elif invMethod=='lu':
                             P, L, U = mpmath.lu(FisherM_)
@@ -153,6 +162,7 @@ def CovMatr(FisherMatrix,
                 except Exception as e:
                     # Eigenvalue decomposition failed
                     print(e)
+                    print('Inversion failed!')
                     CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
 
         
@@ -160,8 +170,8 @@ def CovMatr(FisherMatrix,
 
         if verbose:
                 print('Error with %s: %s\n' %(invMethod, eps))
-        print(' Inversion error with method %s: min=%s, max=%s, mean=%s, std=%s ' %(invMethodIn, onp.min(eps), onp.max(eps), onp.mean(eps), onp.std(eps)) )
-        print('Method %s not possible on %s non-positive definite matrices, %s was used in those cases. ' %(invMethodIn, cho_failed, alt_method))
+                print(' Inversion error with method %s: min=%s, max=%s, mean=%s, std=%s ' %(invMethodIn, onp.min(eps), onp.max(eps), onp.mean(eps), onp.std(eps)) )
+                print('Method %s not possible on %s non-positive definite matrices, %s was used in those cases. ' %(invMethodIn, cho_failed, alt_method))
         return CovMatr , eps
 
 
@@ -384,8 +394,13 @@ def J_Mceta_m1m2(m1, m2):
 
 def m1m2_from_Mceta(Mc, eta):
     delta = 1-4*eta
-    return (1+onp.sqrt(delta))/2*Mc*eta**(3./5.), (1-onp.sqrt(delta))/2*Mc*eta**(3./5.)
+    return (1+onp.sqrt(delta))/2*Mc/eta**(3./5.), (1-onp.sqrt(delta))/2*Mc/eta**(3./5.)
 
+
+def Mceta_from_m1m2(m1, m2):
+    Mc = (m1*m2)**3/5/(m1+m2)**1/5
+    eta = (m1*m2)/(m1+m2)**2
+    return Mc, eta
 
 def m1m2_to_Mceta_fish(or_matrix, ParNums, evParams):
     
@@ -415,7 +430,7 @@ def m1m2_to_Mceta_cov(or_matrix, ParNums, evParams):
 
 def Mceta_to_m1m2_fish(or_matrix, ParNums, evParams):
     
-    nparams=len(list(ParNums.keys()))
+    nparams=or_matrix.shape[0] #len(list(ParNums.keys()))
     
     rotMatrix = onp.identity(nparams)
     
@@ -423,7 +438,7 @@ def Mceta_to_m1m2_fish(or_matrix, ParNums, evParams):
     
     rotMatrix[onp.ix_([ParNums['Mc'],ParNums['eta']],[ParNums['Mc'],ParNums['eta']])] = J_Mceta_m1m2(m1, m2)
     
-    matrix = rotMatrix@or_matrix@rotMatrix
+    matrix = rotMatrix.T@or_matrix@rotMatrix
     
     return matrix
 
