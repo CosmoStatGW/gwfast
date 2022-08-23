@@ -51,17 +51,43 @@ def save_data(fname, data, ):
         for key in data.keys():
             cd(key, data[key])
 
-def load_population(name, nEventsUse=None):
+def load_population(name, nEventsUse=None, calculate_params=[], keys_skip=[]):
 
     events={}
     with h5py.File(name, 'r') as f:
         for key in f.keys(): 
-            events[key] = np.array(f[key])
-
+            if key not in keys_skip:
+                events[key] = np.array(f[key])
+            else:
+                print('Skipping %s' %key)
         if nEventsUse is not None:
             for key in f.keys(): 
                 events[key]=events[key][:nEventsUse]
+    
+    plist = list(events.keys())
+    #print('Keys in load_population: %s' %str(events.keys()))   
+    #computed_L = False
+    #computed_L1 = False
+    #for p in calculate_params:
+    if ('LambdaTilde' in calculate_params) or ('deltaLambda' in calculate_params):
+        print('Computing LambdaTilde, deltaLambda from Lambda1, Lambda2...')
+        events['LambdaTilde'], events['deltaLambda'] = Lamt_delLam_from_Lam12(events['Lambda1'], events['Lambda2'], events['eta'])
+    
+    if (('Lambda1' in calculate_params) or ('Lambda2' in calculate_params)) and not ('Lambda1' in plist):
+        print('Computing Lambda1, Lambda2 from LambdaTilde, deltaLambda...')
+        events['Lambda1'], events['Lambda2'] = Lam12_from_Lamt_delLam(events['LambdaTilde'], events['deltaLambda'], events['eta'])
+        #computed_L1 = True
+    if (('theta' in calculate_params) or ('phi' in calculate_params)) and not ('theta' in plist):
+        print('Computing theta, phi from ra, dec...')
+        events['theta'], events['phi'] = th_phi_from_ra_dec_rad(events['ra'], events['dec'])
+    if (('ra' in calculate_params) or ('dec' in calculate_params)) and not ('ra' in plist):
+        print('Computing ra, dec from theta, phi...')
+        events['ra'], events['dec'] = ra_dec_from_th_phi_rad(events['theta'], events['phi'])
+        
+        #else:
+        #    raise NotImplementedError('Only conversion between Lambda1, Lambda2 and LambdaTilde, deltaLambda supported so far')
             
+    
     events = check_evparams(events)
     return events
 
@@ -77,6 +103,12 @@ def ra_dec_from_th_phi_rad(theta, phi):
     ra = phi #np.rad2deg(phi)
     dec = 0.5*np.pi - theta #np.rad2deg(0.5 * np.pi - theta)
     return ra, dec
+
+def th_phi_from_ra_dec_rad(ra, dec):
+    theta = 0.5 * np.pi - dec
+    phi = ra
+    return theta, phi
+
 
 def ra_dec_from_th_phi(theta, phi):
         ra = np.rad2deg(phi)
