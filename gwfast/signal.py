@@ -636,7 +636,7 @@ class GWSignal(object):
     
     
     def FisherMatr(self, evParams, res=1000, df=None, spacing='geom', 
-                   use_m1m2=False, use_chi1chi2=True, use_prec_ang=False,
+                   use_m1m2=False, use_chi1chi2=True, use_prec_ang=True,
                    computeDerivFinDiff=False, computeAnalyticalDeriv=True,
                    return_all=False,
                    **kwargs):
