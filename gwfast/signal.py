@@ -192,9 +192,12 @@ class GWSignal(object):
             print('Clearing cache...')
             self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
      
-    def _update_seed(self,):
+    def _update_seed(self, seed=None):
         onp.random.seed(None)
-        self.seedUse = onp.random.randint(2**32 - 1, size=1)
+        if seed is None:
+            self.seedUse = onp.random.randint(2**32 - 1, size=1)
+        else:
+            self.seedUse = seed
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
         
@@ -524,17 +527,20 @@ class GWSignal(object):
                 #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp((Psi+phiP)*1j)
         
     
-    def SNRInteg(self, evParams, res=1000):
+    def SNRInteg(self, evParams, res=1000, return_all=False):
         # SNR calculation performing the frequency integral for each signal
         # This is computationally more expensive, but needed for complex waveform models
         if self.DutyFactor is not None:
             onp.random.seed(self.seedUse)
         
         utils.check_evparams(evParams)
-        if not np.isscalar(evParams['Mc']):
-            SNR = np.zeros(len(np.asarray(evParams['Mc'])))
-        else:
-            SNR = 0.
+        
+        #if not np.isscalar(evParams['Mc']):
+        #    SNR = np.zeros(len(np.asarray(evParams['Mc'])))
+        #else:
+        #    SNR = 0.
+        
+        allSNRsq=[]
         
         if self.wf_model.is_Precessing:
             try:
@@ -578,10 +584,11 @@ class GWSignal(object):
         if self.detector_shape=='L':    
             Aps, Acs = self.GWAmplitudes(evParams, fgrids)
             Atot = Aps*Aps + Acs*Acs
-            SNR = np.sqrt(np.trapz(Atot/strainGrids, fgrids, axis=0))
+            SNRsq = np.trapz(Atot/strainGrids, fgrids, axis=0)
             if self.DutyFactor is not None:
                 excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
-                SNR = SNR*excl
+                SNRsq = SNRsq*excl
+            allSNRsq.append(SNRsq)
         elif self.detector_shape=='T':
             if not self.compute2arms:
                 for i in range(3):
@@ -591,8 +598,9 @@ class GWSignal(object):
                     if self.DutyFactor is not None:
                         excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                         tmpSNRsq = tmpSNRsq*excl
-                    SNR = SNR + tmpSNRsq
-                SNR = np.sqrt(SNR)
+                    allSNRsq.append(tmpSNRsq)
+                    #SNR = SNR + tmpSNRsq
+                #SNR = np.sqrt(SNR)
             else:
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
                 Aps1, Acs1 = self.GWAmplitudes(evParams, fgrids, rot=0.)
@@ -611,15 +619,26 @@ class GWSignal(object):
                     tmpSNRsq2 = tmpSNRsq2 * excl
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpSNRsq3 = tmpSNRsq3 * excl
-                
-                SNR = np.sqrt(tmpSNRsq1 + tmpSNRsq2 + tmpSNRsq3)
+                allSNRsq.append(tmpSNRsq1)
+                allSNRsq.append(tmpSNRsq2)
+                allSNRsq.append(tmpSNRsq3)
+                #SNR = np.sqrt(tmpSNRsq1 + tmpSNRsq2 + tmpSNRsq3)
+        allSNRsq = np.array(allSNRsq)
         
-        return 2.*SNR # The factor of two arises by cutting the integral from 0 to infinity
+        if return_all:
+            return 2*np.sqrt(allSNRsq)
+        elif self.detector_shape=='T':
+            return 2*np.sqrt(allSNRsq.sum(axis=0))
+        else:
+            return 2*np.sqrt(allSNRsq)
+            
+        # The factor of two arises by cutting the integral from 0 to infinity
     
     
     def FisherMatr(self, evParams, res=1000, df=None, spacing='geom', 
                    use_m1m2=False, use_chi1chi2=True, use_prec_ang=False,
                    computeDerivFinDiff=False, computeAnalyticalDeriv=True,
+                   return_all=False,
                    **kwargs):
         # If use_m1m2=True the Fisher is computed w.r.t. m1 and m2, not Mc and eta
         # If use_chi1chi2=True the Fisher is computed w.r.t. chi1z and chi2z, not chiS and chiA
@@ -722,6 +741,8 @@ class GWSignal(object):
             computeDerivFinDiff=True
             print('Using LAL waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
             
+        allFishers=[]
+        
         if self.detector_shape=='L': 
             # Compute derivatives
             FisherDerivs = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, use_prec_ang=use_prec_ang, computeAnalyticalDeriv=computeAnalyticalDeriv, computeDerivFinDiff=computeDerivFinDiff, **kwargs)
@@ -742,8 +763,9 @@ class GWSignal(object):
             if self.DutyFactor is not None:
                 excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                 Fisher = Fisher*excl
+            allFishers.append(Fisher)
         else:
-            Fisher = onp.zeros((nParams,nParams,len(Mc)))
+            #Fisher = onp.zeros((nParams,nParams,len(Mc)))
             if not self.compute2arms:
                 for i in range(3):
                     # Change rot and compute derivatives
@@ -767,7 +789,8 @@ class GWSignal(object):
                     if self.DutyFactor is not None:
                         excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                         tmpFisher = tmpFisher*excl
-                    Fisher += tmpFisher
+                    allFishers.append(tmpFisher)
+                    #Fisher += tmpFisher
             else:
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
             
@@ -792,7 +815,8 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
-                Fisher += tmpFisher
+                #Fisher += tmpFisher
+                allFishers.append(tmpFisher)
                 
                 
                 FisherDerivs2 = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, use_prec_ang=use_prec_ang, computeAnalyticalDeriv=computeAnalyticalDeriv, computeDerivFinDiff=computeDerivFinDiff, **kwargs)
@@ -813,7 +837,8 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
-                Fisher += tmpFisher
+                #Fisher += tmpFisher
+                allFishers.append(tmpFisher)
                 
                 FisherDerivs3 = - (FisherDerivs1 + FisherDerivs2)
                     
@@ -832,9 +857,15 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
-                Fisher += tmpFisher
+                #Fisher += tmpFisher
+                allFishers.append(tmpFisher)
             
-        return Fisher
+        if return_all:
+            return allFishers
+        elif self.detector_shape=='T':
+            return [ onp.squeeze(onp.array(allFishers).sum(axis=0)),]
+        else:
+            return allFishers
     
     
     
@@ -966,7 +997,7 @@ class GWSignal(object):
                                 
             dh = ndt.Jacobian(GWstrainUse, step=stepNDT, method=methodNDT, order=2, n=1)
             FisherDerivs = np.asarray(dh(evpars))
-            if len(Mc) == 1:
+            if len(FisherDerivs.shape) == 2: #len(Mc) == 1:
                 FisherDerivs = FisherDerivs[:,:,np.newaxis]
             FisherDerivs = FisherDerivs.transpose(1,2,0)
 

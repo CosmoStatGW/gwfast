@@ -25,34 +25,59 @@ class DetNet(object):
             self.signals[d]._clear_cache()
         
     
-    def _update_all_seeds(self, verbose=True):
-        for d in self.signals.keys():
-            self.signals[d]._update_seed()
+    def _update_all_seeds(self, seeds=[], verbose=True):
+        if seeds==[]:
+            seeds = [ None for _ in range(len(list(self.signals.keys())))]
+        for i,d in enumerate(list(self.signals.keys())):
+            self.signals[d]._update_seed(seed=seeds[i])
             if verbose:
                 print('\nSeed for detector %s is %s'%(d,self.signals[d].seedUse))
     
-    def SNR(self, evParams, res=1000):
-        self.snrs = {}
+    def SNR(self, evParams, res=1000, return_all=False):
+        snrs = {}
         utils.check_evparams(evParams)
         for d in self.signals.keys():
-            self.snrs[d] =  self.signals[d].SNRInteg(evParams, res=res)**2 
-        return onp.sqrt(sum(self.snrs.values()))
+            snr_ = self.signals[d].SNRInteg(evParams, res=res, return_all=return_all)
+            if self.signals[d].detector_shape=='T' and return_all:
+                for i in range(3):
+                   snrs[d+'_%s'%i] = snr_[i]
+            else:
+                snrs[d] = snr_
+        
+        net_snr = onp.squeeze(onp.sqrt(onp.array([ snrs[k]**2 for k in snrs.keys() ]).sum(axis=0)))
+        if return_all:
+            snrs['net'] = net_snr
+            #onp.squeeze(onp.sqrt(sum( onp.array( list(snrs.values()),dtype=object)**2)))
+            return snrs
+        else:
+            return net_snr #onp.squeeze(onp.sqrt(sum( onp.array(list(snrs.values()),dtype=object)**2)))
         
     
-    def FisherMatr(self, evParams, **kwargs):
-        nparams = self.signals[list(self.signals.keys())[0]].wf_model.nParams
-        nevents = len(evParams[list(evParams.keys())[0]])
-        totF = onp.zeros((nparams,nparams,nevents))
+    def FisherMatr(self, evParams, return_all=False, **kwargs):
+        #nparams = self.signals[list(self.signals.keys())[0]].wf_model.nParams
+        #nevents = len(evParams[list(evParams.keys())[0]])
+        #totF = onp.zeros((nparams,nparams,nevents))
+        allF={}
         utils.check_evparams(evParams)
         for d in self.signals.keys():
             if self.verbose:
                 print('Computing Fisher for %s...' %d)
-            totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
-        if self.verbose:
-            print('Computing total Fisher ...')
+            F_ = self.signals[d].FisherMatr(evParams, return_all=return_all, **kwargs) 
+            #totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
+            if self.signals[d].detector_shape=='T' and return_all:
+                for i in range(3):
+                   allF[d+'_%s'%i] = F_[i]
+            else:
+                allF[d] = F_[0]
+        print('Done.')    
+        totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
+        if return_all:
+            allF['net'] = totF #sum(allF.values())
+            return allF
+        else:
+            return totF #sum(allF.values())
         
-        print('Done.')
-        return totF
+        
 
     def optimal_location(self, tcoal, is_tGPS=False):
         # WARNING: The estimate provided by this function works only if the detectors in the network have comparable characteristics, see the paper for discussion.

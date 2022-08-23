@@ -8,6 +8,7 @@
 #    license that can be found in the LICENSE file.
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
 import sys
 import time
 import multiprocessing
@@ -21,6 +22,7 @@ sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR,PACKAGE_PARENT )))
 import copy
 import numpy as onp
 import argparse
+import h5py
 
 import gwfast.gwfastGlobals as glob
 from gwfast.gwfastGlobals import detectors as base_dets
@@ -28,7 +30,7 @@ from gwfast.waveforms import TaylorF2_RestrictedPN, IMRPhenomD, IMRPhenomHM, IMR
 from gwfast.signal import GWSignal
 from gwfast.network import DetNet
 from gwfast.fisherTools import compute_localization_region, fixParams, CheckFisher, CovMatr, compute_inversion_error
-from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population
+from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population, save_data
 
 try:
     import lal
@@ -204,13 +206,20 @@ def get_net(FLAGS):
 #####################################################################################
 
 
-def to_file(snrs, fishers, eps_dL, covs, sky_area, errors, out_path, suff='', cond_numbers=None):
-       
+def to_file(snrs, fishers, eps_dL, covs, sky_area, errors, idxs, out_path, suff='', cond_numbers=None):
+    
+    if onp.ndim(snrs)==0 or onp.isscalar(snrs):
+        snrs = onp.array([snrs,])
+        sky_area = onp.array([sky_area,])
+        eps_dL = onp.array([eps_dL,])
+        
+        
+        
     
     if cond_numbers is None:
         _, _, cond_numbers = CheckFisher(fishers, use_mpmath=True)
     
-    print('Saving all to files. Names of snrs: %s, nams of fishers: %s' %('snrs'+suff+'.txt', 'fishers'+suff+'.npy'))
+    print('Saving all to files. Names of snrs: %s, names of fishers: %s' %('snrs'+suff+'.txt', 'fishers'+suff+'.npy'))
     onp.savetxt(os.path.join(out_path, 'snrs'+suff+'.txt'), snrs)
     onp.save(os.path.join(out_path, 'fishers'+suff+'.npy'), fishers)
     onp.save(os.path.join(out_path, 'covs'+suff+'.npy'), covs)
@@ -218,6 +227,7 @@ def to_file(snrs, fishers, eps_dL, covs, sky_area, errors, out_path, suff='', co
     onp.savetxt(os.path.join(out_path, 'errors'+suff+'.txt'), errors)
     onp.savetxt(os.path.join(out_path, 'inversion_errors'+suff+'.txt'), eps_dL)
     onp.savetxt(os.path.join(out_path, 'cond_numbers'+suff+'.txt'), cond_numbers)
+    onp.savetxt(os.path.join(out_path, 'idxs_det'+suff+'.txt'), idxs)
     
     print('Saving successful.')
     
@@ -225,9 +235,8 @@ def to_file(snrs, fishers, eps_dL, covs, sky_area, errors, out_path, suff='', co
 def from_file(out_path, suff=''):
        
     
-    
         
-    print('Loading files. Names of snrs: %s, nams of fishers: %s' %('snrs'+suff+'.txt', 'fishers'+suff+'.npy'))
+    print('Loading files. Names of snrs: %s, names of fishers: %s' %('snrs'+suff+'.txt', 'fishers'+suff+'.npy'))
     snrs = onp.loadtxt(os.path.join(out_path, 'snrs'+suff+'.txt'), )
     fishers = onp.load(os.path.join(out_path, 'fishers'+suff+'.npy'), )
     covs = onp.load(os.path.join(out_path, 'covs'+suff+'.npy'), )
@@ -235,6 +244,7 @@ def from_file(out_path, suff=''):
     errors = onp.loadtxt(os.path.join(out_path, 'errors'+suff+'.txt'), )
     eps_dL = onp.loadtxt(os.path.join(out_path, 'inversion_errors'+suff+'.txt'), )
     cond_numbers = onp.loadtxt(os.path.join(out_path, 'cond_numbers'+suff+'.txt'), )
+    idxs = onp.loadtxt(os.path.join(out_path, 'idxs_det'+suff+'.txt'), )
     
     print('Loaded.')
     
@@ -246,9 +256,10 @@ def from_file(out_path, suff=''):
         errors = onp.array([errors,]).T
         eps_dL = onp.array([eps_dL,])
         cond_numbers = onp.array([cond_numbers,])
+        idxs = onp.array([idxs,])
         
 
-    return (snrs, fishers, eps_dL, covs, sky_area, errors, cond_numbers)
+    return (snrs, fishers, eps_dL, covs, sky_area, errors, cond_numbers, idxs)
 
 
 def delete_files(idxin, idxf, out_path):
@@ -262,39 +273,111 @@ def delete_files(idxin, idxf, out_path):
     os.remove(os.path.join(out_path, 'errors'+suff+'.txt'))
     os.remove(os.path.join(out_path, 'inversion_errors'+suff+'.txt'))
     os.remove(os.path.join(out_path, 'cond_numbers'+suff+'.txt'))
+    os.remove(os.path.join(out_path, 'idxs_det'+suff+'.txt'))
+    os.remove(os.path.join(out_path, 'all_fishers'+suff+'.hdf5'))
+    os.remove(os.path.join(out_path, 'all_snrs'+suff+'.hdf5'))
 
 
+
+def load_snrs_all(out_path, suff=''):
+    fname=os.path.join(out_path, 'all_snrs'+suff+'.hdf5') #'all_snrs'+suff+'.hdf5'
+    print('Loading all snrs files. Names of snrs: %s,' %(fname))
+    allsnrs={}
+    with h5py.File(fname, 'r') as phi:
+        for det in phi['snr'].keys():
+            allsnrs[det] = onp.array(phi['snr'][det])
+    return allsnrs
+    
+
+
+def load_fishers_all(out_path, suff=''):
+    fname=os.path.join(out_path, 'all_fishers'+suff+'.hdf5') 
+    print('Loading all fishers files. Names of snrs: %s,' %(fname))
+    allfishers={}
+    with h5py.File(fname, 'r') as phi:
+        for det in phi['fisher'].keys():
+            allfishers[det] = onp.array(phi['fisher'][det])
+    return allfishers
+
+
+def to_file_all(snrs, fishers, out_path, suff='', ):
+    
+    
+    fname_out_snr = os.path.join(out_path, 'all_snrs'+suff+'.hdf5') 
+    fname_out_fish = os.path.join(out_path, 'all_fishers'+suff+'.hdf5') 
+    print('Saving all snrs to files. Names of snrs: %s' %(fname_out_snr,))
+    with h5py.File(fname_out_snr, 'a') as f:
+        try:
+            del f['snr']
+        except:
+            pass
+        pg = f.create_group('snr')
+        
+        for i,pn in enumerate(snrs.keys()):
+            print('Saving %s at position %s...' %(pn, i))
+            if onp.isscalar(snrs[pn]) or onp.ndim(snrs[pn])==0 :
+                snrs[pn]=onp.array([snrs[pn],])
+            try:
+                pg.create_dataset(pn, data=snrs[pn], compression='gzip', shuffle=False, )
+            except TypeError:
+                pg.create_dataset(pn, data=onp.array([snrs[pn],]), compression='gzip', shuffle=False, )
+                
+    print('Saving all fishers to files. Names of fishers: %s' %(fname_out_fish))
+    with h5py.File(fname_out_fish, 'a') as f:
+        try:
+            del f['fisher']
+        except:
+            pass
+        pg = f.create_group('fisher')
+        
+        for i,pn in enumerate(fishers.keys()):
+            print('Saving %s at position %s...' %(pn, i))
+            pg.create_dataset(pn, data=fishers[pn], compression='gzip', shuffle=False, )
+
+    
 
 #####################################################################################
 # ACTUAL COMPUTATIONS OF FISHERS AND ERRORS
 #####################################################################################
 
 
-def compute_errs(events, net, FLAGS):
+def compute_errs(events, net, FLAGS, i_in, i_f):
     
     # Computes snrs, fishers, covs, errors, sky areas
     # for a single batch of events
     
     nevents = len(events[list(events.keys())[0]])
     
+    
 
     print('Computing snrs...')
     tsnrinit=  time.time()
-    snrs = net.SNR(events)
+    snrs_all = net.SNR(events, return_all=FLAGS.return_all)
+    if FLAGS.return_all:
+        snrs=snrs_all['net']
+    else:
+        snrs=snrs_all
+    
     tsnrend=time.time()
     print('%s snrs computed in %s sec' %(nevents, str(tsnrend-tsnrinit)))
     print('... which is, %s seconds/snr' %(str( (tsnrend-tsnrinit)/nevents ) ))
 
     detected = snrs>FLAGS.snr_th
+    if onp.isscalar(detected):
+        detected=onp.array([detected,])
     print('%s events have snr>%s' %( detected.sum(), FLAGS.snr_th))
-
+    idxs_detected = onp.arange(i_in, i_f)[onp.argwhere(detected)]
+    
     events_det = get_events_subset(events, detected)
+    nevents_det = len(events_det[list(events.keys())[0]])
+
+    assert nevents_det==detected.sum()
     
     npar = net.signals[list(net.signals.keys())[0]].wf_model.nParams
     
-    totF_ = onp.full( (npar, npar, nevents), onp.nan )
+    #totF_ = onp.full( (npar, npar, nevents_det), onp.nan )
     
-    final_fisher_shape = ( npar-len(FLAGS.params_fix), npar-len(FLAGS.params_fix), nevents)
+    final_fisher_shape = ( npar-len(FLAGS.params_fix), npar-len(FLAGS.params_fix), nevents_det)
     
 
     compute_fisher_ = FLAGS.compute_fisher
@@ -310,27 +393,49 @@ def compute_errs(events, net, FLAGS):
     else:
         # Fisher
         tFinit=  time.time()
-        totF_[:, :, detected] = net.FisherMatr(events_det, 
+        
+        # totF_[:, :, detected] = 
+        Fres_ = net.FisherMatr(events_det, 
                                               res=1000, 
                                               df=None, 
                                               spacing='geom', 
                                               use_chi1chi2=True, 
-                                              computeAnalyticalDeriv=True)
+                                              computeAnalyticalDeriv=True, 
+                                              return_all=FLAGS.return_all)
+        if FLAGS.return_all:
+            totF_ = Fres_['net']
+        else:
+            totF_ = Fres_
         
-        
+        # Fix parameters if required
         ParNums_inp = net.signals[list(net.signals.keys())[0]].wf_model.ParNums
         if len(FLAGS.params_fix)>0:
             print('In the Fisher matrix, we fix the following parameters: %s' %str(FLAGS.params_fix))
-            totF, parNums = fixParams(totF_, ParNums_inp, FLAGS.params_fix)
+            
+            if FLAGS.return_all:
+                Fres = {}
+                for k in Fres_.keys():
+                    res_fix = fixParams(Fres_[k], ParNums_inp, FLAGS.params_fix)
+                    Fres[k] = res_fix[0]
+                    if k=='net':
+                        totF, parNums =  res_fix[0], res_fix[1]
+                        
+            else:
+                # fres is just one fisher
+                Fres, parNums = fixParams(Fres_, ParNums_inp, FLAGS.params_fix)
+                totF = Fres
+            
+                    
         else:
             totF = totF_
             parNums = ParNums_inp
+            Fres=Fres_
             
         
         
         tFend=time.time()
-        print('%s fishers computed in %s sec' %(nevents, str(tFend-tFinit)))
-        print('... which is, %s seconds/fisher' %(str( (tFend-tFinit)/detected.sum() ) ))
+        print('%s fishers computed in %s sec' %(nevents_det, str(tFend-tFinit)))
+        print('... which is, %s seconds/fisher' %(str( (tFend-tFinit)/nevents_det ) ))
 
         
         _, _, cond_numbers = CheckFisher(totF, use_mpmath=True)
@@ -342,7 +447,7 @@ def compute_errs(events, net, FLAGS):
         my_sky_area_90 = onp.full( totF.shape[-1], onp.nan)
         
         try:
-            Cov_dL[:, :, detected], eps_dL[detected] = CovMatr( totF[:, :, detected],
+            Cov_dL, eps_dL = CovMatr( totF,
                                                                invMethodIn='cho', 
                                                                condNumbMax=1e50, 
                                                                svals_thresh=1e-15, 
@@ -352,16 +457,17 @@ def compute_errs(events, net, FLAGS):
             
             #eps_dL = compute_inversion_error(totF, Cov_dL)
             print('Computing localization region...')
-            my_sky_area_90[detected] = compute_localization_region(Cov_dL[:, :, detected], parNums, events_det["theta"], perc_level=90, units='SqDeg')
+            my_sky_area_90 = compute_localization_region(Cov_dL, parNums, events_det["theta"], perc_level=90, units='SqDeg')
         except Exception as e:
             print(e)
+            print()
             Cov_dL = onp.full( totF.shape, onp.nan)
             eps_dL = onp.full(totF.shape[-1], onp.nan)
             my_sky_area_90 = onp.full(totF.shape[-1], onp.nan)
             cond_numbers = onp.full(totF.shape[-1], onp.nan)
     
 
-    return snrs, totF, eps_dL, Cov_dL, my_sky_area_90, cond_numbers
+    return snrs_all, Fres, eps_dL, Cov_dL, my_sky_area_90, cond_numbers, idxs_detected
 
 
 
@@ -440,6 +546,9 @@ def main(idx, FLAGS):
 
         myNet = DetNet(mySignals) 
         
+        #if FLAGS.seed is not None:
+        myNet._update_all_seeds(seeds=FLAGS.seeds, verbose=True)
+        
         if idx==0:
             fname_det_new = os.path.join(FLAGS.fout, 'detectors.json')
             save_detectors(fname_det_new, Net)
@@ -453,19 +562,26 @@ def main(idx, FLAGS):
             ev_chunk = FLAGS.events_lists[str(idx)][it] 
             nevents_chunk = len(ev_chunk['dL'])
             
+            i_in = idxin+FLAGS.idx_in
+            i_f = idxf+FLAGS.idx_in
 
             
-            print('\nIn this chunk we have %s events, from %s to %s' %(nevents_chunk, idxin+FLAGS.idx_in,  idxf+FLAGS.idx_in ))
+            print('\nIn this chunk we have %s events, from %s to %s' %(nevents_chunk, i_in,  i_f  ))
             
          
-            snrs, totF, eps_dL, Cov_dL, my_sky_area_90, condition_numbers = compute_errs(ev_chunk, myNet, FLAGS)
-            
-            errs = onp.array([onp.sqrt(Cov_dL[i, i]) for i in range(totF.shape[0])])
-                      
-            
+            snrs_all, F_all, eps_dL, Cov_dL, my_sky_area_90, condition_numbers, idxs_detected = compute_errs(ev_chunk, myNet, FLAGS, i_in, i_f)                      
             suffstr = '_'+str(idxin+FLAGS.idx_in)+'_to_'+str(idxf+FLAGS.idx_in)
         
-            to_file(snrs, totF, eps_dL, Cov_dL, my_sky_area_90, errs, FLAGS.fout, suff=suffstr, cond_numbers=condition_numbers)
+            if FLAGS.return_all:
+                snrs = snrs_all['net']
+                totF = F_all['net']
+                to_file_all(snrs_all, F_all, FLAGS.fout, suff=suffstr)
+            else:
+                snrs = snrs_all
+                totF=F_all
+                
+            errs = onp.array([onp.sqrt(Cov_dL[i, i]) for i in range(totF.shape[0])])  
+            to_file(snrs, totF, eps_dL, Cov_dL, my_sky_area_90, errs, idxs_detected, FLAGS.fout, suff=suffstr, cond_numbers=condition_numbers)
     
     
         te=time.time()
@@ -507,6 +623,8 @@ if __name__ =='__main__':
     parser.add_argument("--params_fix", nargs='+', default=[ ], type=str, required=False)
     parser.add_argument("--rot", default=1, type=int, required=False)
     parser.add_argument("--lalargs", nargs='+', default=[ ], type=str, required=False)
+    parser.add_argument("--return_all", default=0, type=int, required=False)
+    parser.add_argument("--seeds", nargs='+', default=[ ], type=int, required=False) # This should be one per detector (one per arm for triangular shapes)
 
     FLAGS = parser.parse_args()
 
@@ -522,9 +640,9 @@ if __name__ =='__main__':
     # LOAD EVENTS
     #####################################################################################
     
-    fname_obs = os.path.join('../data', FLAGS.fname_obs+'.h5') 
+    fname_obs = os.path.join( FLAGS.fname_obs) 
     if not os.path.exists(fname_obs):
-        raise ValueError('Path to catalog  does not exist')
+        raise ValueError('Path to catalog does not exist. Value entered: %s' %fname_obs)
     
     print('Loading events from %s...' %fname_obs)
     events_loaded = load_population(fname_obs)
@@ -708,12 +826,31 @@ if __name__ =='__main__':
                     covs = onp.concatenate([res[i][3] for i in range(len(res))], axis=-1)
                     errors = onp.concatenate([res[i][5] for i in range(len(res))], axis=-1)
                     cond_numbers = onp.concatenate([res[i][6] for i in range(len(res))], axis=-1)
+                    idxs_det = onp.concatenate([res[i][7] for i in range(len(res))], axis=-1)
                     print('Shape of Fishers: %s\n' %str(fishers.shape))
+                    
+                    if FLAGS.return_all:
+                        snrs_all_ = load_snrs_all(FLAGS.fout, suff=suff_batch)
+                        fishers_all_ = load_fishers_all(FLAGS.fout, suff=suff_batch)
+                        if it==0 and p==0:
+                            snrs_all = snrs_all_
+                            fishers_all = fishers_all_
+                        else:
+                            for k in snrs_all_.keys():
+                                snrs_all[k] = onp.append(snrs_all[k], snrs_all_[k])
+                                fishers_all[k] = onp.append(fishers_all[k], fishers_all_[k], axis=-1)
+                    
                     pin = pf
     
-        assert fishers.shape[-1]==nevents_total
+        #assert fishers.shape[-1]==nevents_total
         # snrs, fishers, eps_dL, covs, sky_area, errors, out_path, suff='', cond_numbers=None
-        to_file(snrs, fishers, eps_dL, covs, sky_area, errors, FLAGS.fout, suff=suffstr, cond_numbers=cond_numbers)
+        to_file(snrs, fishers, eps_dL, covs, sky_area, errors, idxs_det, FLAGS.fout, suff=suffstr, cond_numbers=cond_numbers)
+        if FLAGS.return_all:
+            to_file_all(snrs_all, fishers_all, FLAGS.fout, suff=suffstr)
+        
+        print('Saving catalog of detected events...')
+        events_detected = {k: events_loaded[k][idxs_det.astype('int')] for k in events_loaded.keys()}
+        save_data(os.path.join(FLAGS.fout, 'events_detected'+suffstr+'.hdf5'), events_detected, )
         
         if (FLAGS.npools>1) or (FLAGS.npools==1 and all_n_it_pools[0]>1): 
             print('Cleaning...')
