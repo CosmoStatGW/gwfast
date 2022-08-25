@@ -42,7 +42,7 @@ class DetNet(object):
                 for i in range(3):
                    snrs[d+'_%s'%i] = snr_[i]
             else:
-                snrs[d] = snr_
+                snrs[d] = onp.squeeze(snr_)
         
         net_snr = onp.squeeze(onp.sqrt(onp.array([ snrs[k]**2 for k in snrs.keys() ]).sum(axis=0)))
         if return_all:
@@ -68,7 +68,7 @@ class DetNet(object):
                 for i in range(3):
                    allF[d+'_%s'%i] = F_[i]
             else:
-                allF[d] = F_[0]
+                allF[d] = onp.squeeze(F_[0])
         print('Done.')    
         totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
         if return_all:

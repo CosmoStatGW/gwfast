@@ -525,8 +525,8 @@ class IMRPhenomD(WaveFormModel):
         aeff = self._finalspin(eta, chi1, chi2)
         Erad = self._radiatednrg(eta, chi1, chi2)
         # Compute ringdown and damping frequencies from interpolators
-        fring = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
-        fdamp = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
+        fring = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
+        fdamp = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
         
         # Compute sigma coefficients appearing in arXiv:1508.07253 eq. (28)
         # They derive from a fit, whose numerical coefficients are in arXiv:1508.07253 Tab. 5
@@ -659,8 +659,8 @@ class IMRPhenomD(WaveFormModel):
         aeff = self._finalspin(eta, chi1, chi2)
         Erad = self._radiatednrg(eta, chi1, chi2)
         # Compute ringdown and damping frequencies from interpolators
-        fring = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
-        fdamp = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
+        fring = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
+        fdamp = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
         # Compute coefficients gamma appearing in arXiv:1508.07253 eq. (19), the numerical coefficients are in Tab. 5
         gamma1 = 0.006927402739328343 + 0.03020474290328911*eta + (0.006308024337706171 - 0.12074130661131138*eta + 0.26271598905781324*eta2 + (0.0034151773647198794 - 0.10779338611188374*eta + 0.27098966966891747*eta2)*xi+ (0.0007374185938559283 - 0.02749621038376281*eta + 0.0733150789135702*eta2)*xi*xi)*xi
         gamma2 = 1.010344404799477 + 0.0008993122007234548*eta + (0.283949116804459 - 4.049752962958005*eta + 13.207828172665366*eta2 + (0.10396278486805426 - 7.025059158961947*eta + 24.784892370130475*eta2)*xi + (0.03093202475605892 - 2.6924023896851663*eta + 9.609374464684983*eta2)*xi*xi)*xi
@@ -835,8 +835,8 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         aeff = self._finalspin(eta, chi1, chi2)
         Erad = self._radiatednrg(eta, chi1, chi2)
         # Compute ringdown and damping frequencies from interpolators
-        fring = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
-        fdamp = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
+        fring = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
+        fdamp = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
         
         # Compute sigma coefficients appearing in arXiv:1508.07253 eq. (28)
         # They derive from a fit, whose numerical coefficients are in arXiv:1508.07253 Tab. 5
@@ -1004,8 +1004,8 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         aeff = self._finalspin(eta, chi1, chi2)
         Erad = self._radiatednrg(eta, chi1, chi2)
         # Compute ringdown and damping frequencies from interpolators
-        fring = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
-        fdamp = np.interp(aeff, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
+        fring = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
+        fdamp = np.interp(aeff.real, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
         # Compute coefficients gamma appearing in arXiv:1508.07253 eq. (19), the numerical coefficients are in Tab. 5
         gamma1 = 0.006927402739328343 + 0.03020474290328911*eta + (0.006308024337706171 - 0.12074130661131138*eta + 0.26271598905781324*eta2 + (0.0034151773647198794 - 0.10779338611188374*eta + 0.27098966966891747*eta2)*xi+ (0.0007374185938559283 - 0.02749621038376281*eta + 0.0733150789135702*eta2)*xi*xi)*xi
         gamma2 = 1.010344404799477 + 0.0008993122007234548*eta + (0.283949116804459 - 4.049752962958005*eta + 13.207828172665366*eta2 + (0.10396278486805426 - 7.025059158961947*eta + 24.784892370130475*eta2)*xi + (0.03093202475605892 - 2.6924023896851663*eta + 9.609374464684983*eta2)*xi*xi)*xi
@@ -2107,8 +2107,8 @@ class IMRPhenomNSBH(WaveFormModel):
 
         Erad = self._radiatednrg(eta, chi1, chi2)
         # Compute ringdown and damping frequencies from interpolators
-        fring = np.interp(chif, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
-        fdamp = np.interp(chif, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
+        fring = np.interp(chif.real, self.QNMgrid_a, self.QNMgrid_fring) / (1.0 - Erad)
+        fdamp = np.interp(chif.real, self.QNMgrid_a, self.QNMgrid_fdamp) / (1.0 - Erad)
         
         # Compute sigma coefficients appearing in arXiv:1508.07253 eq. (28)
         # They derive from a fit, whose numerical coefficients are in arXiv:1508.07253 Tab. 5
