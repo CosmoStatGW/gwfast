@@ -1,26 +1,7 @@
 
 .DS_Store
-GWfish/__pycache__
 gwfast/__pycache__
 notebooks/.ipynb_checkpoints
-notebooks/Testing_and_Implementation.ipynb
 
-calculate_fishers_from_catalog_parallel.py
 data/
 results/
-plots/
-psds/ce_curves
-notebooks/Plots_Fishers.ipynb
-notebooks/IMRPhenomHM_nofor.ipynb
-GWfish/tests
-psds/ASDs_OnEv/GW170817/LIGO_H_ASD_GW170817.txt
-psds/ASDs_OnEv/GW170817/LIGO_L_ASD_GW170817.txt
-psds/ASDs_OnEv/GW170817/Virgo_ASD_GW170817.txt
-notebooks/Results check.ipynb
-notebooks/Make_Plots_Clean.ipynb
-notebooks/optimal_orientation.ipynb
-notebooks/Results_check.ipynb
-notebooks/Check_Signal_with_precession.ipynb
-notebooks/Checks_LAL_wrap.ipynb
-run/sample_fisher.py
-run/downgrade_net_conf.py
