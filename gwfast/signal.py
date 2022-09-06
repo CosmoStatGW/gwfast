@@ -626,11 +626,14 @@ class GWSignal(object):
         allSNRsq = np.array(allSNRsq)
         
         if return_all:
-            return 2*np.sqrt(allSNRsq)
+            if self.detector_shape=='T':
+                return 2*np.sqrt(allSNRsq)
+            else:
+                return np.squeeze(2*np.sqrt(allSNRsq), axis=0)
         elif self.detector_shape=='T':
             return 2*np.sqrt(allSNRsq.sum(axis=0))
         else:
-            return 2*np.sqrt(allSNRsq)
+            return np.squeeze(2*np.sqrt(allSNRsq), axis=0)
             
         # The factor of two arises by cutting the integral from 0 to infinity
     
@@ -863,9 +866,9 @@ class GWSignal(object):
         if return_all:
             return allFishers
         elif self.detector_shape=='T':
-            return [ onp.squeeze(onp.array(allFishers).sum(axis=0)),]
+            return onp.squeeze(onp.array(allFishers).sum(axis=0))
         else:
-            return allFishers
+            return onp.squeeze(allFishers[0])
     
     
     

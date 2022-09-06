@@ -315,14 +315,17 @@ def addPrior(Matr, vals, ParNums, ParAdd):
     
     IdxAdd = onp.sort(onp.array([ParNums[par] for par in ParAdd]))
     
-    pp = onp.zeros(Matr.shape)
+    pp = onp.zeros((Matr.shape[0], Matr.shape[1]))
     
     diag = onp.zeros(Matr.shape[0])
     diag[IdxAdd] = vals
     
     onp.fill_diagonal(pp, diag)
     
-    return pp+Matr
+    if Matr.ndim==2:
+        return pp+Matr
+    else:
+        return pp[:,:,onp.newaxis]+Matr
 
 
 ##############################################################################

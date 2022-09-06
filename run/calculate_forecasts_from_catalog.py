@@ -661,7 +661,7 @@ if __name__ =='__main__':
     
     
     #####################################################################################
-    # SPLIT EVENTS BETWEEN PROCESSES ACCORDING TO BATH SIZE AND NUMBER OF PROCESSES REQUIRED
+    # SPLIT EVENTS BETWEEN PROCESSES ACCORDING TO BATCH SIZE AND NUMBER OF PROCESSES REQUIRED
     #####################################################################################
     
     

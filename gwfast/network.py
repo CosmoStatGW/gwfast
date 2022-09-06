@@ -42,9 +42,9 @@ class DetNet(object):
                 for i in range(3):
                    snrs[d+'_%s'%i] = snr_[i]
             else:
-                snrs[d] = onp.squeeze(snr_)
+                snrs[d] = snr_
         
-        net_snr = onp.squeeze(onp.sqrt(onp.array([ snrs[k]**2 for k in snrs.keys() ]).sum(axis=0)))
+        net_snr = onp.sqrt(onp.array([ snrs[k]**2 for k in snrs.keys() ]).sum(axis=0))
         if return_all:
             snrs['net'] = net_snr
             #onp.squeeze(onp.sqrt(sum( onp.array( list(snrs.values()),dtype=object)**2)))
@@ -66,9 +66,9 @@ class DetNet(object):
             #totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
             if self.signals[d].detector_shape=='T' and return_all:
                 for i in range(3):
-                   allF[d+'_%s'%i] = F_[i]
+                   allF[d+'_%s'%i] = onp.squeeze(F_[i])
             else:
-                allF[d] = onp.squeeze(F_[0])
+                allF[d] = onp.squeeze(F_)
         print('Done.')    
         totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
         if return_all:
