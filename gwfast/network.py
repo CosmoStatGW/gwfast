@@ -66,9 +66,11 @@ class DetNet(object):
             #totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
             if self.signals[d].detector_shape=='T' and return_all:
                 for i in range(3):
-                   allF[d+'_%s'%i] = onp.squeeze(F_[i])
+                   allF[d+'_%s'%i] = F_[i]
+            elif self.signals[d].detector_shape=='L' and return_all:
+                allF[d] = F_[0]
             else:
-                allF[d] = onp.squeeze(F_)
+                allF[d] = F_
         print('Done.')    
         totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
         if return_all:

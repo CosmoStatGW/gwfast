@@ -866,9 +866,9 @@ class GWSignal(object):
         if return_all:
             return allFishers
         elif self.detector_shape=='T':
-            return onp.squeeze(onp.array(allFishers).sum(axis=0))
+            return onp.array(allFishers).sum(axis=0)
         else:
-            return onp.squeeze(allFishers[0])
+            return allFishers[0]
     
     
     
