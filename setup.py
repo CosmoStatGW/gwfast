@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name='gwfast',
-    version='1.0.1',
+    version='1.0.2',
     author='Francesco Iacovelli, Michele Mancarella',
     author_email='francesco.iacovelli@unige.ch, michele.mancarella@unige.ch',
     description='A fisher matrix python package for GW studies',

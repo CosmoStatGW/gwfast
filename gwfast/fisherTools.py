@@ -18,6 +18,13 @@ import copy
 import mpmath
 import scipy
 
+try:
+    onp.float128(1.)
+    typeuse='float128'
+except AttributeError:
+    print('WARNING: numpy float128 type not supported on this machine, resorting to float64, precision might be lower.')
+    typeuse='float64'
+
 ##############################################################################
 # INVERSION AND SANITY CHECKS
 ##############################################################################
@@ -32,8 +39,8 @@ def CovMatr(FisherMatrix,
         FisherMatrixOr = copy.deepcopy(FisherMatrix)
         
         reweighted=False
-        FisherM = FisherMatrix.astype('float128')        
-        CovMatr = onp.zeros(FisherMatrix.shape).astype('float128')
+        FisherM = FisherMatrix.astype(typeuse)
+        CovMatr = onp.zeros(FisherMatrix.shape).astype(typeuse)
         
         cho_failed = 0
         for k in range(FisherM.shape[-1]): 
@@ -45,11 +52,11 @@ def CovMatr(FisherMatrix,
                 CovMatr[:, :, k] = onp.full( FisherM[:, :, k].shape , onp.nan)
             else:
                 # go to mpmath
-                ff = mpmath.matrix( FisherM[:, :, k].astype('float128'))
+                ff = mpmath.matrix( FisherM[:, :, k].astype(typeuse))
                 try:
                     # Conditioning of the original Fisher
                     E, _ = mpmath.eigh(ff)
-                    E = onp.array(E.tolist(), dtype=onp.float128)
+                    E = onp.array(E.tolist(), dtype=typeuse)
                     if onp.any(E<0) and verbose:
                         print('Matrix is not positive definite!')
         
@@ -63,7 +70,7 @@ def CovMatr(FisherMatrix,
                         FisherM_ = ws*ff*ws
                         # Conditioning of the new Fisher
                         EE, _ = mpmath.eigh(FisherM_)
-                        E = onp.array(EE.tolist(), dtype=onp.float128)
+                        E = onp.array(EE.tolist(), dtype=typeuse)
                         cond = onp.max(onp.abs(E))/onp.min(onp.abs(E))
                         if verbose:
                             print('Condition of the new matrix: %s' %cond)
@@ -101,25 +108,25 @@ def CovMatr(FisherMatrix,
                             cc = c.T*c
                     elif invMethod=='svd':
                             U, Sm, V = mpmath.svd_r(FisherM_)
-                            S = onp.array(Sm.tolist(), dtype=onp.float128)
+                            S = onp.array(Sm.tolist(), dtype=typeuse)
                             if ((truncate) and (onp.abs(cond)>condNumbMax)):
                                 if verbose:
                                     print('Truncating singular values below %s' %svals_thresh)
                                
                                 maxev = onp.max(onp.abs(S))                        
-                                Sinv = mpmath.matrix(onp.array([1/s if onp.abs(s)/maxev>svals_thresh else 1/(maxev*svals_thresh) for s in S ]).astype('float128'))
-                                St = mpmath.matrix(onp.array([s if onp.abs(s)/maxev>svals_thresh else maxev*svals_thresh for s in S ]).astype('float128'))
+                                Sinv = mpmath.matrix(onp.array([1/s if onp.abs(s)/maxev>svals_thresh else 1/(maxev*svals_thresh) for s in S ]).astype(typeuse))
+                                St = mpmath.matrix(onp.array([s if onp.abs(s)/maxev>svals_thresh else maxev*svals_thresh for s in S ]).astype(typeuse))
                                 
                                 # Also copute truncated Fisher to quantify inversion error consistently
                                 truncFisher = U*mpmath.diag([s for s in St])*V
                                 truncFisher = (truncFisher+truncFisher.T)/2
-                                FisherMatrixOr[:, :, k] = onp.array(truncFisher.tolist(), dtype=onp.float128)
+                                FisherMatrixOr[:, :, k] = onp.array(truncFisher.tolist(), dtype=typeuse)
                                 
                                 if verbose:
                                     truncated = onp.abs(S)/maxev<svals_thresh #onp.array([1 if onp.abs(s)/maxev>svals_thresh else 0 for s in S ]
                                     print('%s singular values truncated' %(truncated.sum()))
                             else:
-                                Sinv = mpmath.matrix(onp.array([1/s for s in S ]).astype('float128'))
+                                Sinv = mpmath.matrix(onp.array([1/s for s in S ]).astype(typeuse))
                                 St = S
                             
                             cc=V.T*mpmath.diag([s for s in Sinv])*U.T
@@ -128,13 +135,13 @@ def CovMatr(FisherMatrix,
                         
                             U, Sm, V = mpmath.svd_r(FisherM_)
                             
-                            S = onp.squeeze(onp.array(Sm.tolist(), dtype=onp.float128))
-                            Um = onp.array(U.tolist(), dtype=onp.float128)
-                            Vm = onp.array(V.tolist(), dtype=onp.float128)
+                            S = onp.squeeze(onp.array(Sm.tolist(), dtype=typeuse))
+                            Um = onp.array(U.tolist(), dtype=typeuse)
+                            Vm = onp.array(V.tolist(), dtype=typeuse)
       
                             kVal = sum(S > svals_thresh)
                                                         
-                            Sinv = mpmath.matrix(onp.array([1/s  for s in S ]).astype('float128'))                            
+                            Sinv = mpmath.matrix(onp.array([1/s  for s in S ]).astype(typeuse))
                             cc = mpmath.matrix(Um[:, 0:kVal] @ onp.diag(1. / S[0:kVal]) @ Vm[0:kVal, :])
                                                     
                             
@@ -155,7 +162,7 @@ def CovMatr(FisherMatrix,
                     else:
                         CovMatr_ = cc
         
-                    CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=onp.float128)
+                    CovMatr[:, :, k] =  onp.array(CovMatr_.tolist(), dtype=typeuse)
                     if verbose:
                         print()
                 
@@ -211,10 +218,10 @@ def CheckFisher(FisherM, condNumbMax=1.0e15, use_mpmath=True, verbose=False):
                 else:
                 
                     try:
-                        aam = mpmath.matrix(FisherM[:,:,k].astype('float128'))
+                        aam = mpmath.matrix(FisherM[:,:,k].astype(typeuse))
                         E, ER = mpmath.eigh(aam)
-                        evals[k, :] = onp.array(E, dtype=onp.float128)
-                        evecs[k, :, :] = onp.array(ER.tolist(), dtype=onp.float128)
+                        evals[k, :] = onp.array(E, dtype=typeuse)
+                        evecs[k, :, :] = onp.array(ER.tolist(), dtype=typeuse)
                     except Exception as e:
                         print(e)
                         print('Trying with scipy')
@@ -341,9 +348,9 @@ def log_dL_to_dL_derivative_cov(or_matrix, ParNums, evParams):
             matrix = matrix.at[:, ParNums['dL'], : ].set(matrix[:, ParNums['dL'], :]* evParams['dL'])
             matrix = matrix.at[ ParNums['dL'], : , : ].set(matrix[ParNums['dL'], :, :]* evParams['dL'])
     except AttributeError:
-            matrix = matrix.astype('float128')
-            matrix[:, ParNums['dL'], :] *= evParams['dL'].astype('float128')
-            matrix[ ParNums['dL'], :, :] *= evParams['dL'].astype('float128')
+            matrix = matrix.astype(typeuse)
+            matrix[:, ParNums['dL'], :] *= evParams['dL'].astype(typeuse)
+            matrix[ ParNums['dL'], :, :] *= evParams['dL'].astype(typeuse)
     return matrix
 
 
@@ -355,9 +362,9 @@ def log_dL_to_dL_derivative_fish(or_matrix, ParNums, evParams):
             matrix = matrix.at[:, ParNums['dL'], : ].set(matrix[:, ParNums['dL'], :]/ evParams['dL'])
             matrix = matrix.at[ ParNums['dL'], : , : ].set(matrix[ ParNums['dL'], :, :]/ evParams['dL'])
     except AttributeError:
-            matrix = matrix.astype('float128')
-            matrix[:, ParNums['dL'], :] /= evParams['dL'].astype('float128')
-            matrix[ ParNums['dL'], :, :] /= evParams['dL'].astype('float128')
+            matrix = matrix.astype(typeuse)
+            matrix[:, ParNums['dL'], :] /= evParams['dL'].astype(typeuse)
+            matrix[ ParNums['dL'], :, :] /= evParams['dL'].astype(typeuse)
     return matrix
     
     
