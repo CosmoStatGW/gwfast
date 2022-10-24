@@ -264,6 +264,8 @@ def from_file(out_path, suff=''):
             eps_dL = onp.array([eps_dL,])
             cond_numbers = onp.array([cond_numbers,])
             idxs = onp.array([idxs,])
+        if onp.ndim(errors)==1:
+            errors = errors[:,onp.newaxis]
             
         return [snrs, fishers, eps_dL, covs, sky_area, errors, cond_numbers, idxs]
     
@@ -378,7 +380,7 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
     snrs_all_df1 = net.SNR(events, return_all=True) #FLAGS.return_all)
     
     # Impose duty
-    if (FLAGS.duty_factor>=1) or  (onp.isnan(FLAGS.duty_factor) ):
+    if (FLAGS.duty_factor is None) or (FLAGS.duty_factor>=1):
         snrs_all = copy.deepcopy(snrs_all_df1)
     else:
         print('Imposing duty factor...')
@@ -419,8 +421,9 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
         detected=onp.array([detected,])
     
     is_duty_applied_det = {}
-    for key in is_duty_applied.keys():
-        is_duty_applied_det[key] = is_duty_applied[key][detected]
+    if not ((FLAGS.duty_factor is None) or (FLAGS.duty_factor>=1)):
+        for key in is_duty_applied.keys():
+            is_duty_applied_det[key] = is_duty_applied[key][detected]
     
     
     detected_all = snrs_df1>FLAGS.snr_th
@@ -469,7 +472,7 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
                                               return_all=True ) #FLAGS.return_all)
         
         
-        if (FLAGS.duty_factor>=1) or  (onp.isnan(FLAGS.duty_factor) ):
+        if (FLAGS.duty_factor is None) or (FLAGS.duty_factor>=1):
             Fres_ = copy.deepcopy(Fres_df1_)
         else:
             print('Imposing duty factor...')
@@ -677,11 +680,14 @@ def main(idx, FLAGS):
                 to_file_all(snrs_all, F_all, FLAGS.fout, suff=suffstr)
             else:
                 snrs = snrs_all['net']
-                if onp.all(onp.isnan(F_all)):
+                if type(F_all)==dict:
+                    totF = F_all['net']
+                else:
+                    totF=F_all
+                if onp.all(onp.isnan(totF)):
                     print('Nothing to save')
                     save=False
                 else:
-                    totF=F_all
                     save=True
               
             if save:
@@ -690,7 +696,7 @@ def main(idx, FLAGS):
             else:
                 if onp.ndim(snrs)==0 or onp.isscalar(snrs):
                     snrs = onp.array([snrs,])
-                    print('Saving only snrs to files. Names of snrs: %s' %('snrs'+suffstr+'.txt',))
+                print('Saving only snrs to files. Names of snrs: %s' %('snrs'+suffstr+'.txt',))
                 onp.savetxt(os.path.join(FLAGS.fout, 'snrs'+suffstr+'.txt'), snrs)
     
         te=time.time()
@@ -744,12 +750,18 @@ if __name__ =='__main__':
     
     ti =  time.time()
     
-    
+    if len(FLAGS.seeds) == 0:
+        tmpNet = get_net(FLAGS)
+        onp.random.seed(None)
+        for i in range(len(tmpNet.keys())):
+            FLAGS.seeds = FLAGS.seeds + [onp.random.randint(2**32 - 1, size=1)[0]]
+        
     #####################################################################################
     # LOAD EVENTS
     #####################################################################################
     
-    fname_obs = os.path.join(  FLAGS.fname_obs) 
+    fname_obs = os.path.join(  FLAGS.fname_obs)
+    #fname_obs = os.path.join('../data', FLAGS.fname_obs+'.h5')
     if not os.path.exists(fname_obs):
         raise ValueError('Path to catalog does not exist. Value entered: %s' %fname_obs)
     
@@ -921,6 +933,7 @@ if __name__ =='__main__':
         pin=FLAGS.idx_in
         res = []
         ndet_tot = 0
+        fishers_initialised = False
         for it in range(all_batch_sizes.shape[0]): # iterations
             for p in range(all_batch_sizes.shape[-1]): # pools
                 pf =  pin+all_batch_sizes[it, p]
@@ -942,7 +955,6 @@ if __name__ =='__main__':
                     ndet = (snrs_>FLAGS.snr_th).sum()
                     print('Number of detections in %s: %s' %(suff_batch, ndet))
                     ndet_tot += ndet
-                    print(snrs)
                     
                     not_load_fishers = (ndet==0) or (FLAGS.compute_fisher==False)
                     load_fishers = not not_load_fishers
@@ -954,13 +966,13 @@ if __name__ =='__main__':
                         elif FLAGS.compute_fisher==False:
                             print('Fishers not computed')
                     else: 
-                        fishers = onp.concatenate([res[i][1] for i in range(len(res))], axis=-1) 
-                        eps_dL = onp.concatenate([res[i][2] for i in range(len(res))], axis=-1) 
-                        sky_area = onp.concatenate([res[i][4] for i in range(len(res))], axis=-1)            
-                        covs = onp.concatenate([res[i][3] for i in range(len(res))], axis=-1)
-                        errors = onp.concatenate([res[i][5] for i in range(len(res))], axis=-1)
-                        cond_numbers = onp.concatenate([res[i][6] for i in range(len(res))], axis=-1)
-                        idxs_det = onp.concatenate([res[i][7] for i in range(len(res))], axis=-1)
+                        fishers = onp.concatenate([res[i][1] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        eps_dL = onp.concatenate([res[i][2] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        sky_area = onp.concatenate([res[i][4] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        covs = onp.concatenate([res[i][3] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        errors = onp.concatenate([res[i][5] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        cond_numbers = onp.concatenate([res[i][6] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
+                        idxs_det = onp.concatenate([res[i][7] for i in range(len(res)) if len(res[i]) > 1 ], axis=-1)
                         print('Shape of Fishers: %s\n' %str(fishers.shape))
                     
                     if FLAGS.return_all:
@@ -971,10 +983,15 @@ if __name__ =='__main__':
                             snrs_all = snrs_all_
                             if load_fishers:
                                 fishers_all = fishers_all_
+                                fishers_initialised = True
                         else:
+                            if (not fishers_initialised) and (load_fishers):
+                                fishers_all = fishers_all_
+                                fishers_initialised = True
+                                load_fishers=False
                             for k in snrs_all_.keys():
                                 snrs_all[k] = onp.append(snrs_all[k], snrs_all_[k])
-                                if load_fishers:
+                                if (load_fishers) and (fishers_initialised):
                                     fishers_all[k] = onp.append(fishers_all[k], fishers_all_[k], axis=-1)
                     
                     pin = pf
