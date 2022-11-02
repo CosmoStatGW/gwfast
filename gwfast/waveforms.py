@@ -343,7 +343,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     '''
     
     # This waveform model is restricted PN (the amplitude stays as in Newtonian approximation) up to 3.5 PN
-    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, **kwargs):
+    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, which_ISCO='Schw', **kwargs):
         
         if fHigh is None:
             fHigh = 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3) #Hz
@@ -354,6 +354,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         self.use_3p5PN_SpinHO = use_3p5PN_SpinHO
         self.phiref_vlso = phiref_vlso
         self.fRef_ecc=fRef_ecc
+        self.which_ISCO=which_ISCO
         super().__init__(objectT, fHigh, is_tidal=is_tidal, is_eccentric=is_eccentric, **kwargs)
     
     def Phi(self, f, **kwargs):
@@ -468,6 +469,47 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         t7  = (- 15419335./127008. - 75703./756.*eta + 14809./378.*eta2)*np.pi*(v**7)
         
         return OverallFac*(t05 + t6 + t7)
+    
+    def fcut(self, **kwargs):
+        # The cut frequency of the waveform. This can be approximated as 2f_ISCO for inspiral only waveforms. The flag which_ISCO controls the expression of the ISCO to use:
+        # - if Schw is passed the Schwarzschild ISCO for a non-rotating final BH is used (depending only on Mc and eta)
+        # - if Kerr is passed the Kerr ISCO for a rotating final BH is computed (depending on Mc, eta and the spins), as in arXiv:2108.05861 (see in particular App. C). NOTE: this is pushing the validity of TaylorF2 to the limit, and is not the default option.
+        if self.which_ISCO=='Schw':
+            
+            return self.fcutPar/(kwargs['Mc']/(kwargs['eta']**(3./5.)))
+        
+        elif self.which_ISCO=='Kerr':
+            
+            eta = kwargs['eta']
+            eta2 = eta*eta
+            Mtot = kwargs['Mc']/(eta**(3./5.))
+            chi1, chi2 = kwargs['chi1z'], kwargs['chi2z']
+            Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+            m1 = 0.5 * (1.0 + Seta)
+            m2 = 0.5 * (1.0 - Seta)
+            s = (m1*m1 * chi1 + m2*m2 * chi2) / (m1*m1 + m2*m2)
+            atot = (chi1 + chi2*(m2/m1)*(m2/m1))/((1.+m2/m1)*(1.+m2/m1))
+            aeff = atot + 0.41616*eta*(chi1 + chi2)
+
+            def r_ISCO_of_chi(chi):
+                Z1_ISCO = 1.0 + ((1.0 - chi*chi)**(1./3.))*((1.0+chi)**(1./3.) + (1.0-chi)**(1./3.))
+                Z2_ISCO = np.sqrt(3.0*chi*chi + Z1_ISCO*Z1_ISCO)
+                return np.where(chi>0., 3.0 + Z2_ISCO - np.sqrt((3.0 - Z1_ISCO)*(3.0 + Z1_ISCO + 2.0*Z2_ISCO)), 3.0 + Z2_ISCO + np.sqrt((3.0 - Z1_ISCO)*(3.0 + Z1_ISCO + 2.0*Z2_ISCO)))
+            
+            r_ISCO = r_ISCO_of_chi(aeff)
+            
+            EradNS = eta * (0.055974469826360077 + 0.5809510763115132 * eta - 0.9606726679372312 * eta2 + 3.352411249771192 * eta2*eta)
+            EradTot = (EradNS * (1. + (-0.0030302335878845507 - 2.0066110851351073 * eta + 7.7050567802399215 * eta2) * s)) / (1. + (-0.6714403054720589 - 1.4756929437702908 * eta + 7.304676214885011 * eta2) * s)
+            
+            Mfin = Mtot*(1.-EradTot)
+            L_ISCO = 2./(3.*np.sqrt(3.))*(1. + 2.*np.sqrt(3.*r_ISCO - 2.))
+            E_ISCO = np.sqrt(1. - 2./(3.*r_ISCO))
+            
+            chif = atot + eta*(L_ISCO - 2.*atot*(E_ISCO - 1.)) + (-3.821158961 - 1.2019*aeff - 1.20764*aeff*aeff)*eta2 + (3.79245 + 1.18385*aeff + 4.90494*aeff*aeff)*eta2*eta
+            
+            Om_ISCO = 1./(((r_ISCO_of_chi(chif))**(3./2.))+chif)
+            
+            return Om_ISCO/(np.pi*Mfin*glob.GMsun_over_c3)
 
 ##############################################################################
 # IMRPhenomD WAVEFORM

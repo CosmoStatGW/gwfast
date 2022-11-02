@@ -35,9 +35,10 @@ REarth = 6371.00 # km
 clight = 2.99792458e5 # km/s
 clightGpc = clight/3.0856778570831e+22
 
-
+# ISCO frequency coefficient for a Schwarzschild BH
 f_isco=1./(np.sqrt(6.)*6.*2.*np.pi*GMsun_over_c3)
-
+# limit of the quasi-Keplerian approximation, as in arXiv:2108.05861 (see also arXiv:1605.00304), more conservative than the Schwarzschild ISCO
+f_qK = 2585. # Hz
 ##############################################################################
 # POSITIONS OF DETECTORS
 # See https://iopscience.iop.org/article/10.3847/1538-4357/ac4164
