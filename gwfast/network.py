@@ -111,3 +111,22 @@ class DetNet(object):
         else:
             # For a network the minima can be different, thus to find the global one we use the basin-hopping method. Given the small interval, we find 50 iterations sufficient, but this can be easily changed
             return basinhopping(pattern_fixedtpsi, [1.,1.], niter=50, minimizer_kwargs={'bounds':((0.,onp.pi), (0.,2.*onp.pi))}).x
+    
+    def WFOverlap(self, WF1, WF2, evParams1, evParams2, res=1000, **kwargs):
+        
+        utils.check_evparams(evParams1)
+        utils.check_evparams(evParams2)
+        
+        overlap_all = onp.zeros_like(evParams1['Mc'])
+        SNR1_all    = onp.zeros_like(evParams1['Mc'])
+        SNR2_all    = onp.zeros_like(evParams1['Mc'])
+        
+        for d in self.signals.keys():
+            overlap_int, SNR1, SNR2 = self.signals[d].WFOverlap(WF1, WF2, evParams1, evParams2, res=res, return_separate=True)
+            
+            overlap_all += overlap_int
+            SNR1_all    += SNR1**2
+            SNR2_all    += SNR2**2
+            
+        return overlap_all/onp.sqrt(SNR1_all*SNR2_all)
+        

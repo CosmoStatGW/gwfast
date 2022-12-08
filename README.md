@@ -45,7 +45,7 @@ gwfast/run/
 
 ## Usage
 
-All details are reported in the accompanying paper [2](<>).
+All details are reported in the accompanying paper [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>).
 
 To initialise a *waveform* object simply run, e.g.
 
@@ -82,6 +82,8 @@ Finally, to compute the **covariance matrices** it is sufficient to
 CovMatr(FisherMatrs, events) 
 ```
 
+#### For a list of features implemented after the publication of [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) see the [NEW_FEATURES](<https://github.com/CosmoStatGW/gwfast/blob/master/NEW_FEATURES.md>) file
+
 ## Installation
 To install the package without cloning the git repository, and a CPU-only version of JAX 
 
@@ -113,11 +115,15 @@ If using this software, please cite this repository and the papers [arXiv:2207.0
 ```
 @article{Iacovelli:2022mbg,
     author = "Iacovelli, Francesco and Mancarella, Michele and Foffa, Stefano and Maggiore, Michele",
-    title = "{Supplement to "Forecasting the detection capabilities of third-generation gravitational-wave detectors using GWFAST": how to GWFAST}",
+    title = "{GWFAST: A Fisher Information Matrix Python Code for Third-generation Gravitational-wave Detectors}",
     eprint = "2207.06910",
     archivePrefix = "arXiv",
     primaryClass = "astro-ph.IM",
-    month = "7",
+    doi = "10.3847/1538-4365/ac9129",
+    journal = "Astrophys. J. Supp.",
+    volume = "263",
+    number = "1",
+    pages = "2",
     year = "2022"
 }
 ```

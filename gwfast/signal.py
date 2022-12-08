@@ -25,6 +25,7 @@ from jax import pmap, vmap, jacrev, jit #jacfwd
 import time
 import h5py
 import numdifftools as ndt
+import copy
 from numdifftools.step_generators import MaxStepGenerator
 
 from gwfast import gwfastUtils as utils
@@ -398,7 +399,7 @@ class GWSignal(object):
         tcoal, Phicoal =  evParams['tcoal'], evParams['Phicoal']
         PhiGw = self.wf_model.Phi(f, **evParams)
 
-        return 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + PhiGw
+        return 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal - PhiGw
 
     def GWstrain(self, f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., is_m1m2=False, is_chi1chi2=False, is_prec_ang=False, return_single_comp=None):
 
@@ -523,7 +524,7 @@ class GWSignal(object):
                     else:
                         raise ValueError('Single component to return has to be among Ap, Ac, Psip, Psic')
                 else:
-                    return (Ap + 1j*Ac)*np.exp(Psi*1j)
+                    return (Ap - 1j*Ac)*np.exp(Psi*1j)
                 #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp((Psi+phiP)*1j)
         
     
@@ -742,7 +743,7 @@ class GWSignal(object):
         
         if (self.wf_model.is_LAL) and (not computeDerivFinDiff):
             computeDerivFinDiff=True
-            print('Using LAL waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
+            print('Using LAL or TEOBResumS waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
             
         allFishers=[]
         
@@ -1432,4 +1433,152 @@ class GWSignal(object):
         
         return SNR
             
-            
+    def WFOverlap(self, WF1, WF2, evParams1, evParams2, res=1000, return_separate=False, **kwargs):
+
+        utils.check_evparams(evParams1)
+        utils.check_evparams(evParams2)
+        
+        # Checks on imput parameters for waveform 1
+
+        if WF1.is_Precessing:
+                try:
+                    _ =evParams1['chi1x']
+                except KeyError:
+                    try:
+                        print('Adding cartesian components of the spins from angular variables')
+                        evParams1['iota'], evParams1['chi1x'], evParams1['chi1y'], evParams1['chi1z'], evParams1['chi2x'], evParams1['chi2y'], evParams1['chi2z'] = utils.TransformPrecessing_angles2comp(thetaJN=evParams1['thetaJN'], phiJL=evParams1['phiJL'], theta1=evParams1['tilt1'], theta2=evParams1['tilt2'], phi12=evParams1['phi12'], chi1=evParams1['chi1'], chi2=evParams1['chi2'], Mc=evParams1['Mc'], eta=evParams1['eta'], fRef=self.fmin, phiRef=0.)
+                    except KeyError:
+                        raise ValueError('Either the cartesian components of the precessing spins (iota, chi1x, chi1y, chi1z, chi2x, chi2y, chi2z) or their modulus and orientations (thetaJN, chi1, chi2, tilt1, tilt2, phiJL, phi12) have to be provided.')
+        else:
+            try:
+                _ =evParams1['chi1z']
+                evParams1['chi1x'], evParams1['chi1y'], evParams1['chi2x'], evParams1['chi2y'] = np.zeros_like(evParams1['Mc']), np.zeros_like(evParams1['Mc']) ,np.zeros_like(evParams1['Mc']), np.zeros_like(evParams1['Mc'])
+            except KeyError:
+                try:
+                    print('Adding chi1z, chi2z from chiS, chiA')
+                    evParams1['chi1z'] = evParams1['chiS'] + evParams1['chiA']
+                    evParams1['chi2z'] = evParams1['chiS'] - evParams1['chiA']
+                except KeyError:
+                    raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
+                        
+        if WF1.is_tidal:
+            try:
+                _=evParams1['LambdaTilde']
+            except KeyError:
+                try:
+                    evParams1['LambdaTilde'], evParams1['deltaLambda'] = utils.Lamt_delLam_from_Lam12(evParams1['Lambda1'], evParams1['Lambda2'], evParams1['eta'])
+                except KeyError:
+                    raise ValueError('Two among Lambda1, Lambda2 and LambdaTilde and deltaLambda have to be provided.')
+        else:
+            evParams1['LambdaTilde'], evParams1['deltaLambda'] = np.zeros_like(evParams1['Mc']), np.zeros_like(evParams1['Mc'])
+        
+        if not WF1.is_eccentric:
+            evParams1['ecc'] = np.zeros_like(evParams1['Mc'])
+
+        # Checks on imput parameters for waveform 2
+
+        if WF2.is_Precessing:
+                try:
+                    _ =evParams2['chi1x']
+                except KeyError:
+                    try:
+                        print('Adding cartesian components of the spins from angular variables')
+                        evParams2['iota'], evParams2['chi1x'], evParams2['chi1y'], evParams2['chi1z'], evParams2['chi2x'], evParams2['chi2y'], evParams2['chi2z'] = utils.TransformPrecessing_angles2comp(thetaJN=evParams2['thetaJN'], phiJL=evParams2['phiJL'], theta1=evParams2['tilt1'], theta2=evParams2['tilt2'], phi12=evParams2['phi12'], chi1=evParams2['chi1'], chi2=evParams2['chi2'], Mc=evParams2['Mc'], eta=evParams2['eta'], fRef=self.fmin, phiRef=0.)
+                    except KeyError:
+                        raise ValueError('Either the cartesian components of the precessing spins (iota, chi1x, chi1y, chi1z, chi2x, chi2y, chi2z) or their modulus and orientations (thetaJN, chi1, chi2, tilt1, tilt2, phiJL, phi12) have to be provided.')
+        else:
+            try:
+                _ =evParams2['chi1z']
+                evParams2['chi1x'], evParams2['chi1y'], evParams2['chi2x'], evParams2['chi2y'] = np.zeros_like(evParams2['Mc']), np.zeros_like(evParams2['Mc']) ,np.zeros_like(evParams2['Mc']), np.zeros_like(evParams2['Mc'])
+            except KeyError:
+                try:
+                    print('Adding chi1z, chi2z from chiS, chiA')
+                    evParams2['chi1z'] = evParams2['chiS'] + evParams2['chiA']
+                    evParams2['chi2z'] = evParams2['chiS'] - evParams2['chiA']
+                except KeyError:
+                    raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
+                    
+        if WF2.is_tidal:
+            try:
+                _=evParams2['LambdaTilde']
+            except KeyError:
+                try:
+                    evParams2['LambdaTilde'], evParams2['deltaLambda'] = utils.Lamt_delLam_from_Lam12(evParams2['Lambda1'], evParams2['Lambda2'], evParams2['eta'])
+                except KeyError:
+                    raise ValueError('Two among Lambda1, Lambda2 and LambdaTilde and deltaLambda have to be provided.')
+        else:
+            evParams2['LambdaTilde'], evParams2['deltaLambda'] = np.zeros_like(evParams2['Mc']), np.zeros_like(evParams2['Mc'])
+        
+        if not WF2.is_eccentric:
+            evParams2['ecc'] = np.zeros_like(evParams2['Mc'])
+
+        # The frequency cut is chosen to be the highest among the two
+        fcut1 = WF1.fcut(**evParams1)
+        fcut2 = WF2.fcut(**evParams2)
+
+        fcutUse = np.where(fcut1>fcut2, fcut1, fcut2)
+
+        if self.fmax is not None:
+            fcutUse = np.where(fcutUse > self.fmax, self.fmax, fcut1)
+        fminarr = np.full(fcutUse.shape, self.fmin)
+
+        fgrids = np.geomspace(fminarr,fcutUse,num=int(res))
+        # Out of the provided PSD range, we use a constant value of 1, which results in completely negligible conntributions
+        strainGrids = np.interp(fgrids, self.strainFreq, self.noiseCurve, left=1., right=1.)
+
+        # This is a horrible way of changing the waveform, but the fastest to implement
+        WFor = copy.deepcopy(self.wf_model)
+
+        if self.detector_shape=='L':
+            self.wf_model = WF1
+            h1 = self.GWstrain(fgrids, evParams1['Mc'], evParams1['eta'], evParams1['dL'], evParams1['theta'], evParams1['phi'], evParams1['iota'], evParams1['psi'], evParams1['tcoal'], evParams1['Phicoal'], evParams1['chi1z'], evParams1['chi2z'], evParams1['chi1x'], evParams1['chi2x'], evParams1['chi1y'], evParams1['chi2y'], evParams1['LambdaTilde'], evParams1['deltaLambda'], evParams1['ecc'], is_chi1chi2=True)
+            h1sq = np.conjugate(h1)*h1
+            SNRh1 = np.sqrt(4.*np.trapz(h1sq.real/strainGrids, fgrids, axis=0))
+            self.wf_model = WF2
+            h2 = self.GWstrain(fgrids, evParams2['Mc'], evParams2['eta'], evParams2['dL'], evParams2['theta'], evParams2['phi'], evParams2['iota'], evParams2['psi'], evParams2['tcoal'], evParams2['Phicoal'], evParams2['chi1z'], evParams2['chi2z'], evParams2['chi1x'], evParams2['chi2x'], evParams2['chi1y'], evParams2['chi2y'], evParams2['LambdaTilde'], evParams2['deltaLambda'], evParams2['ecc'], is_chi1chi2=True)
+            h2sq = np.conjugate(h2)*h2
+            SNRh2 = np.sqrt(4.*np.trapz(h2sq.real/strainGrids, fgrids, axis=0))
+
+            overlap_h1h2 = h1*np.conjugate(h2)
+            overlap_int= 4.*np.trapz(overlap_h1h2.real/strainGrids, fgrids, axis=0)
+
+        elif self.detector_shape=='T':
+            self.wf_model = WF1
+            h1_1 = self.GWstrain(fgrids, evParams1['Mc'], evParams1['eta'], evParams1['dL'], evParams1['theta'], evParams1['phi'], evParams1['iota'], evParams1['psi'], evParams1['tcoal'], evParams1['Phicoal'], evParams1['chi1z'], evParams1['chi2z'], evParams1['chi1x'], evParams1['chi2x'], evParams1['chi1y'], evParams1['chi2y'], evParams1['LambdaTilde'], evParams1['deltaLambda'], evParams1['ecc'], is_chi1chi2=True, rot=0.)
+            h1_1sq = np.conjugate(h1_1)*h1_1
+            SNRh1_1sq = 4.*np.trapz(h1_1sq.real/strainGrids, fgrids, axis=0)
+            h1_2 = self.GWstrain(fgrids, evParams1['Mc'], evParams1['eta'], evParams1['dL'], evParams1['theta'], evParams1['phi'], evParams1['iota'], evParams1['psi'], evParams1['tcoal'], evParams1['Phicoal'], evParams1['chi1z'], evParams1['chi2z'], evParams1['chi1x'], evParams1['chi2x'], evParams1['chi1y'], evParams1['chi2y'], evParams1['LambdaTilde'], evParams1['deltaLambda'], evParams1['ecc'], is_chi1chi2=True, rot=60.)
+            h1_2sq = np.conjugate(h1_2)*h1_2
+            SNRh1_2sq = 4.*np.trapz(h1_2sq.real/strainGrids, fgrids, axis=0)
+            h1_3 = - (h1_1 + h1_2)
+            h1_3sq = np.conjugate(h1_3)*h1_3
+            SNRh1_3sq = 4.*np.trapz(h1_3sq.real/strainGrids, fgrids, axis=0)
+            SNRh1 = np.sqrt(SNRh1_1sq + SNRh1_2sq + SNRh1_3sq)
+
+            self.wf_model = WF2
+            h2_1 = self.GWstrain(fgrids, evParams2['Mc'], evParams2['eta'], evParams2['dL'], evParams2['theta'], evParams2['phi'], evParams2['iota'], evParams2['psi'], evParams2['tcoal'], evParams2['Phicoal'], evParams2['chi1z'], evParams2['chi2z'], evParams2['chi1x'], evParams2['chi2x'], evParams2['chi1y'], evParams2['chi2y'], evParams2['LambdaTilde'], evParams2['deltaLambda'], evParams2['ecc'], is_chi1chi2=True, rot=0.)
+            h2_1sq = np.conjugate(h2_1)*h2_1
+            SNRh2_1sq = 4.*np.trapz(h2_1sq.real/strainGrids, fgrids, axis=0)
+            h2_2 = self.GWstrain(fgrids, evParams2['Mc'], evParams2['eta'], evParams2['dL'], evParams2['theta'], evParams2['phi'], evParams2['iota'], evParams2['psi'], evParams2['tcoal'], evParams2['Phicoal'], evParams2['chi1z'], evParams2['chi2z'], evParams2['chi1x'], evParams2['chi2x'], evParams2['chi1y'], evParams2['chi2y'], evParams2['LambdaTilde'], evParams2['deltaLambda'], evParams2['ecc'], is_chi1chi2=True, rot=60.)
+            h2_2sq = np.conjugate(h2_2)*h2_2
+            SNRh2_2sq = 4.*np.trapz(h2_2sq.real/strainGrids, fgrids, axis=0)
+            h2_3 = - (h2_1 + h2_2)
+            h2_3sq = np.conjugate(h2_3)*h2_3
+            SNRh2_3sq = 4.*np.trapz(h2_3sq.real/strainGrids, fgrids, axis=0)
+            SNRh2 = np.sqrt(SNRh2_1sq + SNRh2_2sq + SNRh2_3sq)
+
+            overlap_h1h2_1 = h1_1*np.conjugate(h2_1)
+            overlap_int_1  = 4.*np.trapz(overlap_h1h2_1.real/strainGrids, fgrids, axis=0)
+            overlap_h1h2_2 = h1_2*np.conjugate(h2_2)
+            overlap_int_2  = 4.*np.trapz(overlap_h1h2_2.real/strainGrids, fgrids, axis=0)
+            overlap_h1h2_3 = h1_3*np.conjugate(h2_3)
+            overlap_int_3  = 4.*np.trapz(overlap_h1h2_3.real/strainGrids, fgrids, axis=0)
+
+            overlap_int = overlap_int_1 + overlap_int_2 + overlap_int_3
+        # Restore the waveform
+        self.wf_model = WFor
+
+        if return_separate:
+            return overlap_int, SNRh1, SNRh2
+        else:
+            return overlap_int/(SNRh1*SNRh2)
