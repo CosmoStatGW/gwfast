@@ -34,6 +34,10 @@ try:
     import lalsimulation as lalsim
 except ModuleNotFoundError:
     print('LSC Algorithm Library (LAL) is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
+try:
+    import EOBRun_module
+except ModuleNotFoundError:
+    print('TEOBResumS is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
 
 ##############################################################################
 # WaveFormModel CLASS DEFINITION
@@ -333,6 +337,140 @@ class LAL_WF(WaveFormModel):
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
+# WRAPPER FOR TEOBResumSPA WAVEFORM
+##############################################################################
+
+class TEOBResumSPA_WF(WaveFormModel):
+    '''
+    Wrapper for using TEOBResumSPA waveforms
+    TEOBResumS is available at https://bitbucket.org/eob_ihes/teobresums/src/master/
+    For references see arXiv:2104.07533, arXiv:2012.00027, arXiv:2001.09082, arXiv:1904.09550, arXiv:1806.01772, arXiv:1506.08457, arXiv:1406.6913
+    '''
+
+    def __init__(self, modes=[[2,1], [2,2], [3,1], [3,2], [3,3], [4,1], [4,2], [4,3], [4,4]], fcutPar=0.3, is_tidal=False, is_Precessing=False, **kwargs):
+        # modes is a list of modes to use in the waveform, each one being a list of two elements, representing l and m, respectively
+        
+        if is_tidal:
+            objectT = 'BNS'
+        else:
+            objectT = 'BBH'
+        
+        def modes_to_k(modes):
+            return [int(x[0]*(x[0]-1)/2 + x[1]-2) for x in modes]
+
+        self.k = modes_to_k(modes)
+        is_HigherModes = False
+        if len(self.k) > 1:
+            is_HigherModes = True
+        
+        self.use_spins = 2
+            
+        super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_LAL=True, **kwargs)
+    
+    def Phi(self, f, **kwargs):
+        
+        hps, _ = self.hphc(f, **kwargs)
+        
+        return np.unwrap(np.angle(hps))
+
+    def Ampl(self, f, **kwargs):
+        
+        hps, _ = self.hphc(f, **kwargs)
+        
+        return abs(hp)
+    
+    def hphc(self, f, **kwargs):
+                
+        m1, m2 = utils.m1m2_from_Mceta(kwargs['Mc'], kwargs['eta'])
+        
+        if not self.is_Precessing:
+            chi1x, chi2x, chi1y, chi2y = m1*0., m1*0., m1*0., m1*0.
+        else:
+            chi1x, chi2x, chi1y, chi2y = kwargs['chi1x'], kwargs['chi2x'], kwargs['chi1y'], kwargs['chi2y']
+        
+        if not self.is_tidal:
+            lambda1, lambda2 = m1*0., m1*0.
+        else:
+            lambda1, lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
+        
+        if (self.is_HigherModes) or (self.is_Precessing):
+            iota = kwargs['iota']
+        else:
+            iota = m1*0.
+                
+        def TEOBResumSeval(fgrid, m1, m2, chi1x, chi2x, chi1y, chi2y, chi1z, chi2z, dL, iota, lambda1, lambda2):
+
+            parsDict = {'M'                  : m1+m2,          # System parametes
+                        'q'                  : m1/m2,
+                        'chi1'               : chi1z,
+                        'chi2'               : chi2z,
+                        'chi1x'              : chi1x,
+                        'chi1y'              : chi1y,
+                        #'chi1z'              : chi1z,
+                        'chi2x'              : chi2x,
+                        'chi2y'              : chi2y,
+                        #'chi2z'              : chi2z,
+                        'distance'           : dL*1000.,
+                        'inclination'        : iota,
+                        'coalescence_angle'  : 0.,
+                        'LambdaAl2'          : lambda1,
+                        'LambdaBl2'          : lambda2,
+                        # Initial conditions and output grid
+                        'use_geometric_units': "no",           # Output quantities in geometric units
+                        'initial_frequency'  : min(fgrid),     # in Hz
+                        'domain'             : 1,              # FD
+                        'srate_interp'       : max(fgrid)*2.,  # srate at which to interpolate, fixes f_max in 'FD' at srate_interp/2.
+                        'interp_freqs'       : "yes",
+                        'freqs'              : fgrid.tolist(),
+                        # Modes
+                        'use_mode_lm'        : self.k,         # List of modes to use/output
+                        'output_lm'          : self.k,
+                        # Spins
+                        'use_spins'          : self.use_spins,
+                        'project_spins'      : "yes",
+                        'spin_interp_domain' : 0,
+                        # Output parameters
+                        'arg_out'            : "no",      # Not output multipoles and dynamics as output of the function call.
+                        'output_multipoles'  : "no",
+                        'output_dynamics'    : "no",
+                       }
+            
+            f, hp_re, hp_im, hc_re, hc_im = EOBRun_module.EOBRunPy(parsDict)
+            hp, hc = hp_re-1j*hp_im, -(hc_re-1j*hc_im)
+            
+            return hp, hc
+            
+            
+        
+        hps, hcs = onp.zeros_like(f).astype('complex64'), onp.zeros_like(f).astype('complex64')
+        if m1.ndim==0:
+            hps, hcs = TEOBResumSeval(np.real(f[:]), float(np.real(m1)), float(np.real(m2)), float(np.real(chi1x)), float(np.real(chi2x)), float(np.real(chi1y)), float(np.real(chi2y)), float(np.real(kwargs['chi1z'])), float(np.real(kwargs['chi2z'])), float(np.real(kwargs['dL'])), float(np.real(iota)), float(np.real(lambda1)), float(np.real(lambda2)))
+        else:
+            for i in range(len(m1)):
+                hps[:,i], hcs[:,i] = TEOBResumSeval(np.real(f[:,i]), float(np.real(m1[i])), float(np.real(m2[i])), float(np.real(chi1x[i])), float(np.real(chi2x[i])), float(np.real(chi1y[i])), float(np.real(chi2y[i])), float(np.real(kwargs['chi1z'][i])), float(np.real(kwargs['chi2z'][i])), float(np.real(kwargs['dL'][i])), float(np.real(iota[i])), float(np.real(lambda1[i])), float(np.real(lambda2[i])))
+        
+        return hps, hcs
+    
+    def tau_star(self, f, **kwargs):
+        # We use the expression in arXiv:0907.0700 eq. (3.8b)
+        Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
+        v = (np.pi*Mtot_sec*f)**(1./3.)
+        eta = kwargs['eta']
+        eta2 = eta*eta
+        
+        OverallFac = 5./256 * Mtot_sec/(eta*(v**8.))
+        
+        t05 = 1. + (743./252. + 11./3.*eta)*(v*v) - 32./5.*np.pi*(v*v*v) + (3058673./508032. + 5429./504.*eta + 617./72.*eta2)*(v**4) - (7729./252. - 13./3.*eta)*np.pi*(v**5)
+        t6  = (- 10052469856691./23471078400. + 128./3.*np.pi*np.pi + 6848./105.*np.euler_gamma + (3147553127./3048192. - 451./12.*np.pi*np.pi)*eta - 15211./1728.*eta2 + 25565./1296.*eta2*eta + 3424./105.*np.log(16.*v*v))*(v**6)
+        t7  = (- 15419335./127008. - 75703./756.*eta + 14809./378.*eta2)*np.pi*(v**7)
+        
+        return OverallFac*(t05 + t6 + t7)
+    
+    def fcut(self, **kwargs):
+        
+        return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
+
+##############################################################################
 # TAYLORF2 3.5 RESTRICTED PN WAVEFORM
 ##############################################################################
 
@@ -343,7 +481,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
     '''
     
     # This waveform model is restricted PN (the amplitude stays as in Newtonian approximation) up to 3.5 PN
-    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, which_ISCO='Schw', **kwargs):
+    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, which_ISCO='Schw', use_QuadMonTid=False, **kwargs):
         
         if fHigh is None:
             fHigh = 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3) #Hz
@@ -355,6 +493,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         self.phiref_vlso = phiref_vlso
         self.fRef_ecc=fRef_ecc
         self.which_ISCO=which_ISCO
+        self.use_QuadMonTid = use_QuadMonTid
         super().__init__(objectT, fHigh, is_tidal=is_tidal, is_eccentric=is_eccentric, **kwargs)
     
     def Phi(self, f, **kwargs):
@@ -366,13 +505,28 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         #Seta = np.sqrt(1.0 - 4.0*eta)
+        # These are m1/Mtot and m2/Mtot
+        m1ByM = 0.5 * (1.0 + Seta)
+        m2ByM = 0.5 * (1.0 - Seta)
         
         chi1, chi2 = kwargs['chi1z'], kwargs['chi2z']
+        chi12, chi22 = chi1*chi1, chi2*chi2
+        chi1dotchi2  = chi1*chi2
         chi_s, chi_a   = 0.5*(chi1 + chi2), 0.5*(chi1 - chi2)
         chi_s2, chi_a2 = chi_s*chi_s, chi_a*chi_a
         chi_sdotchi_a  = chi_s*chi_a
         # flso = 1/6^(3/2)/(pi*M) -> vlso = (pi*M*flso)^(1/3) = (1/6^(3/2))^(1/3)
         vlso = 1./np.sqrt(6.)
+        
+        if (self.is_tidal) and (self.use_QuadMonTid):
+            Lambda1, Lambda2 = kwargs['Lambda1'], kwargs['Lambda2']
+            # A non-zero tidal deformability induces a quadrupole moment (for BBH it is 1).
+            # The relation between the two is given in arxiv:1608.02582 eq. (15) with coefficients from third row of Table I
+            # We also extend the range to 0 <= Lam < 1, as done in LALSimulation in LALSimUniversalRelations.c line 123
+            QuadMon1 = np.where(Lambda1 < 1., 1. + Lambda1*(0.427688866723244 + Lambda1*(-0.324336526985068 + Lambda1*0.1107439432180572)), np.exp(0.1940 + 0.09163 * np.log(Lambda1) + 0.04812 * np.log(Lambda1) * np.log(Lambda1) -4.283e-3 * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1) + 1.245e-4 * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1) * np.log(Lambda1)))
+            QuadMon2 = np.where(Lambda2 < 1., 1. + Lambda2*(0.427688866723244 + Lambda2*(-0.324336526985068 + Lambda2*0.1107439432180572)), np.exp(0.1940 + 0.09163 * np.log(Lambda2) + 0.04812 * np.log(Lambda2) * np.log(Lambda2) -4.283e-3 * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2) + 1.245e-4 * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2) * np.log(Lambda2)))
+        else:
+            QuadMon1, QuadMon2 = np.ones(eta.shape), np.ones(eta.shape)
         
         TF2coeffs = {}
         TF2OverallAmpl = 3./(128. * eta)
@@ -381,7 +535,9 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         TF2coeffs['one'] = 0.
         TF2coeffs['two'] = 3715./756. + (55.*eta)/9.
         TF2coeffs['three'] = -16.*np.pi + (113.*Seta*chi_a)/3. + (113./3. - (76.*eta)/3.)*chi_s
-        TF2coeffs['four'] = 15293365./508032. + (27145.*eta)/504.+ (3085.*eta2)/72. + (-405./8. + 200.*eta)*chi_a2 - (405.*Seta*chi_sdotchi_a)/4. + (-405./8. + (5.*eta)/2.)*chi_s2
+        #TF2coeffs['four'] = 15293365./508032. + (27145.*eta)/504.+ (3085.*eta2)/72. + (-405./8. + 200.*eta)*chi_a2 - (405.*Seta*chi_sdotchi_a)/4. + (-405./8. + (5.*eta)/2.)*chi_s2
+        # For 2PN coeff we use chi1 and chi2 so to have the quadrupole moment explicitly appearing
+        TF2coeffs['four'] = 5.*(3058.673/7.056 + 5429./7.*eta+617.*eta2)/72. + 247./4.8*eta*chi1dotchi2 -721./4.8*eta*chi1dotchi2 + (-720./9.6*QuadMon1 + 1./9.6)*m1ByM*m1ByM*chi12 + (-720./9.6*QuadMon2 + 1./9.6)*m2ByM*m2ByM*chi22 + (240./9.6*QuadMon1 - 7./9.6)*m1ByM*m1ByM*chi12 + (240./9.6*QuadMon2 - 7./9.6)*m2ByM*m2ByM*chi22
         # This part is common to 5 and 5log, avoid recomputing
         TF2_5coeff_tmp = (732985./2268. - 24260.*eta/81. - 340.*eta2/9.)*chi_s + (732985./2268. + 140.*eta/9.)*Seta*chi_a
         if self.phiref_vlso:
@@ -392,7 +548,9 @@ class TaylorF2_RestrictedPN(WaveFormModel):
             # This pi factor is needed to include LAL fRef rescaling, so to end up with the exact same waveform
             phiR = np.pi
         TF2coeffs['five_log'] = (38645.*np.pi/756. - 65.*np.pi*eta/9. - TF2_5coeff_tmp)*3.
-        TF2coeffs['six'] = 11583231236531./4694215680. - 640./3.*np.pi**2 - 6848./21.*np.euler_gamma + eta*(-15737765635./3048192. + 2255./12.*np.pi**2) + eta2*76055./1728. - eta2*eta*127825./1296. - (6848./21.)*np.log(4.) + np.pi*(2270.*Seta*chi_a/3. + (2270./3. - 520.*eta)*chi_s) + (75515./144. - 8225.*eta/18.)*Seta*chi_sdotchi_a + (75515./288. - 263245.*eta/252. - 480.*eta2)*chi_a2 + (75515./288. - 232415.*eta/504. + 1255.*eta2/9.)*chi_s2
+        #TF2coeffs['six'] = 11583231236531./4694215680. - 640./3.*np.pi**2 - 6848./21.*np.euler_gamma + eta*(-15737765635./3048192. + 2255./12.*np.pi**2) + eta2*76055./1728. - eta2*eta*127825./1296. - (6848./21.)*np.log(4.) + np.pi*(2270.*Seta*chi_a/3. + (2270./3. - 520.*eta)*chi_s) + (75515./144. - 8225.*eta/18.)*Seta*chi_sdotchi_a + (75515./288. - 263245.*eta/252. - 480.*eta2)*chi_a2 + (75515./288. - 232415.*eta/504. + 1255.*eta2/9.)*chi_s2
+        # For 3PN coeff we use chi1 and chi2 so to have the quadrupole moment explicitly appearing
+        TF2coeffs['six'] = 11583.231236531/4.694215680 - 640./3.*np.pi*np.pi - 684.8/2.1*np.euler_gamma + eta*(-15737.765635/3.048192 + 225.5/1.2*np.pi*np.pi) + eta2*76.055/1.728 - eta2*eta*127.825/1.296 - np.log(4.)*684.8/2.1 + np.pi*chi1*m1ByM*(1490./3. + m1ByM*260.) + np.pi*chi2*m2ByM*(1490./3. + m2ByM*260.) + (326.75/1.12 + 557.5/1.8*eta)*eta*chi1dotchi2 + (4703.5/8.4+2935./6.*m1ByM-120.*m1ByM*m1ByM)*m1ByM*m1ByM*QuadMon1*chi12 + (-4108.25/6.72-108.5/1.2*m1ByM+125.5/3.6*m1ByM*m1ByM)*m1ByM*m1ByM*chi12 + (4703.5/8.4+2935./6.*m2ByM-120.*m2ByM*m2ByM)*m2ByM*m2ByM*QuadMon2*chi22 + (-4108.25/6.72-108.5/1.2*m2ByM+125.5/3.6*m2ByM*m2ByM)*m2ByM*m2ByM*chi22
         TF2coeffs['six_log'] = -(6848./21.)
         if self.use_3p5PN_SpinHO:
         # This part includes SS and SSS contributions at 3.5PN, which are not included in LAL
