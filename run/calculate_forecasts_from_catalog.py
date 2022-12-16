@@ -37,7 +37,13 @@ try:
     from gwfast.waveforms import LAL_WF
 except ModuleNotFoundError:
     print('LSC Algorithm Library (LAL) is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
-
+TEOBResumS_installed = False
+try:
+    import EOBRun_module
+    from gwfast.waveforms import TEOBResumSPA_WF
+    TEOBResumS_installed = True
+except ModuleNotFoundError:
+    print('TEOBResumS is not installed, only the GWFAST waveform models are available, namely: TaylorF2, IMRPhenomD, IMRPhenomD_NRTidalv2, IMRPhenomHM and IMRPhenomNSBH')
 
 #####################################################################################
 # GLOBALS
@@ -56,7 +62,9 @@ wf_models_dict = {'IMRPhenomD':IMRPhenomD(),
                   'IMRPhenomNSBH':IMRPhenomNSBH(),
                   'tf2_ecc':TaylorF2_RestrictedPN(is_tidal=False, use_3p5PN_SpinHO=True, is_eccentric=True),
                   }
-
+if TEOBResumS_installed:
+    wf_models_dict['TEOBResumSPA'] = TEOBResumSPA_WF()
+    wf_models_dict['TEOBResumSPA_tidal'] = TEOBResumSPA_WF(is_tidal=True)
 
 #####################################################################################
 # input/output logic

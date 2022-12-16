@@ -54,3 +54,5 @@ The default is to include all the modes up to *l=4*, i.e. ```modes=[[2,1], [2,2]
 The implementation matches the one used in the examples available [here](<https://bitbucket.org/eob_ihes/teobresums/src/master/Python/Examples/>). 
 
 When using this waveform model, derivatives are computed using numerical differentiation (finite differences).
+
+To use this model in the ```calculate_forecasts_from_catalog.py``` script, set ```--wf_model='TEOBResumSPA'``` for the BBH version, or ```--wf_model='TEOBResumSPA_tidal'``` to include tidal effects.
