@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+title: GWFAST
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file. Please also cite the
+  provided references to the release papers.
+type: software
+authors:
+  - given-names: Francesco
+    family-names: Iacovelli
+    email: francesco.iacovelli@unige.ch
+    affiliation: University of Geneva
+    orcid: https://orcid.org/0000-0002-4875-5862
+  - given-names: Michele
+    family-names: Mancarella
+    email: michele.mancarella@unimib.it
+    affiliation: University of Milan Bicocca
+    orcid: https://orcid.org/0000-0002-0675-508X
+repository-code: 'https://github.com/CosmoStatGW/gwfast'
+url: 'https://github.com/CosmoStatGW/gwfast'
+abstract: >-
+  GWFAST is a Python code for forecasting the
+  signal-to-noise ratios and parameter estimation
+  capabilities of networks of gravitational-wave
+  detectors, based on the Fisher information matrix
+  approximation. It is designed for applications to
+  third-generation gravitational-wave detectors. It
+  is based on Automatic Differentiation, which makes
+  use of the library JAX. This allows efficient
+  parallelization and numerical accuracy. The code
+  includes a module for parallel computation on
+  clusters.
+keywords:
+  - python
+  - automatic-differentiation
+  - gravitational-waves
+  - fisher-information
+  - JAX
+license: GPL-3.0
+version: 1.0.2
+date-released: 2022-09-08
+doi: 10.5281/zenodo.7060235
