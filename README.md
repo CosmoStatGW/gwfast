@@ -1,3 +1,7 @@
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.18914.svg)](http://dx.doi.org/10.5281/zenodo.7060236) [![Documentation Status](https://readthedocs.org/projects/gwfast/badge/?version=latest)](https://gwfast.readthedocs.io/en/latest/?badge=latest) <a href="https://ascl.net/2212.001"><img src="https://img.shields.io/badge/ascl-2212.001-blue.svg?colorB=262255" alt="ascl:2212.001" /></a>
+
+![alt text](<https://github.com/CosmoStatGW/gwfast/blob/master/gwfast_logo_bkgd.png>)
+
 # gwfast
 Fisher Information Matrix package for GW cosmology, written in Python and based on automatic differentiation.
 
@@ -33,19 +37,38 @@ gwfast/WFfiles/
 			
 gwfast/run/
 			Script to run in parallel on catalogs
+			
+gwfast/docs/ 
+			Code documentation in Sphinx
 						
 ```
 
 ## Summary
 
-* [Usage](https://github.com/CosmoStatGW/gwfast#Usage)
+* [Documentation](https://github.com/CosmoStatGW/gwfast#Documentation)
 * [Installation](https://github.com/CosmoStatGW/gwfast#Installation)
+* [Usage](https://github.com/CosmoStatGW/gwfast#Usage)
 * [Citation](https://github.com/CosmoStatGW/gwfast#Citation)
+
+## Documentation
+
+gwfast has its documentation hosted on Read the Docs [here](<https://github.com/CosmoStatGW/WF4Py>), and it can also be built from the ```docs``` directory.
+
+## Installation
+To install the package without cloning the git repository, and a CPU-only version of JAX 
+
+```
+pip install --upgrade pip
+pip install --upgrade "jax[cpu]" 
+pip install git+https://github.com/CosmoStatGW/gwfast
+```
+
+To install a JAX version for GPU or TPU proceed as explained in [https://github.com/google/jax#installation](<https://github.com/google/jax#installation>).
 
 
 ## Usage
 
-All details are reported in the accompanying paper [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>).
+All details are reported in the accompanying paper [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) and some examples are in the [gwfast_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/gwfast_tutorial.ipynb>) notebook.
 
 To initialise a *waveform* object simply run, e.g.
 
@@ -82,19 +105,7 @@ Finally, to compute the **covariance matrices** it is sufficient to
 CovMatr(FisherMatrs, events) 
 ```
 
-#### For a list of features implemented after the publication of [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) see the [NEW_FEATURES](<https://github.com/CosmoStatGW/gwfast/blob/master/NEW_FEATURES.md>) file
-
-## Installation
-To install the package without cloning the git repository, and a CPU-only version of JAX 
-
-```
-pip install --upgrade pip
-pip install --upgrade "jax[cpu]" 
-pip install git+https://github.com/CosmoStatGW/gwfast
-```
-
-To install a JAX version for GPU or TPU proceed as explained in [https://github.com/google/jax#installation](<https://github.com/google/jax#installation>).
-
+#### For a list of features implemented after the publication of [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) see the [NEW_FEATURES](<https://github.com/CosmoStatGW/gwfast/blob/master/NEW_FEATURES.md>) file and the [new\_features_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/new_features_tutorial.ipynb>) notebook
 
 ## Citation
 
@@ -103,11 +114,15 @@ If using this software, please cite this repository and the papers [arXiv:2207.0
 ```
 @article{Iacovelli:2022bbs,
     author = "Iacovelli, Francesco and Mancarella, Michele and Foffa, Stefano and Maggiore, Michele",
-    title = "{Forecasting the detection capabilities of third-generation gravitational-wave detectors using GWFAST}",
+    title = "{Forecasting the Detection Capabilities of Third-generation Gravitational-wave Detectors Using GWFAST}",
     eprint = "2207.02771",
     archivePrefix = "arXiv",
     primaryClass = "gr-qc",
-    month = "7",
+    doi = "10.3847/1538-4357/ac9cd4",
+    journal = "Astrophys. J.",
+    volume = "941",
+    number = "2",
+    pages = "208",
     year = "2022"
 }
 ```
