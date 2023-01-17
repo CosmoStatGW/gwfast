@@ -21,6 +21,17 @@ from gwfast import gwfastGlobals as glob
 
 
 def get_event(evs, idx):
+    """
+    Select events from a catalog by index.
+
+    :param dict(array, array, ...) evs: The dictionary conatining the parameters of the events, as in :py:data:`events`.
+    :param list(int) or array(int) or int idx: The indexes of the events to select.
+    
+    :return: The dictionary conatining the subsample of events.
+    :rtype: dict(array, array, ...)
+
+    """
+    
     res = {k: np.squeeze(np.array([evs[k][idx], ] )) for k in evs.keys()}
     try:
         len(res['Mc'])
@@ -29,17 +40,39 @@ def get_event(evs, idx):
     return res
         
 def get_events_subset(evs, detected):
+    """
+    Select events from a catalog given condition.
+
+    :param dict(array, array, ...) evs: The dictionary conatining the parameters of the events, as in :py:data:`events`.
+    :param list(bool) or array(bool) detected: Mask with the events to select, with the same shape as the arrays containing the events parameters.
+    
+    :return: The dictionary conatining the subsample of events.
+    :rtype: dict(array, array, ...)
+
+    """
     return get_event(evs, np.argwhere(detected))
 
 
 def save_detectors(fname, detectors):
+    """
+    Store a collection of dictionaries containing the detector characteristics in ``json`` file.
     
+    :param str fname: The name of the file to store the detector characteristics in. This has to include the path and the ``json`` extension.
+    :param dict(dict, dict, ...) detectors: The collection of dictionaries conatining the detector characteristics (``lat``, ``long``, ``xax`` and ``psd_path`` if desired), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    
+    """
     with open(fname, 'w') as fp:
         json.dump(detectors, fp)
     
 
 def save_data(fname, data, ):
+    """
+    Store a dictionary containing the events parameters in ``h5`` file.
     
+    :param str fname: The name of the file to store the events in. This has to include the path and the ``h5`` or ``hdf5`` extension.
+    :param dict(array, array, ...) data: The dictionary conatining the parameters of the events, as in :py:data:`events`.
+    
+    """
     print('Saving to %s '%fname)
     with h5py.File(fname, 'w') as out:
             
@@ -52,7 +85,21 @@ def save_data(fname, data, ):
             cd(key, data[key])
 
 def load_population(name, nEventsUse=None, calculate_params=[], keys_skip=[]):
-
+    
+    """
+    Load a dictionary containing the events parameters in h5 file, compute some useful cobinations and perform checks.
+    
+    :param str name: The name of the file to load the events from. This has to include the path and the ``h5`` or ``hdf5`` extension.
+    :param int or None nEventsUse: Number of the events in the given file to load.
+    :type kind: int or None
+    :param list(str) calculate_params: Parameters not present in the file to compute. The supported parameters are ``'LambdaTilde'``, ``'deltaLambda'``, ``'Lambda1'``, ``'Lambda2'``, ``'theta'``, ``'phi'``, ``'ra'``, ``'dec'``.
+    :param list(str) keys_skip: Parameters present in the file to skip.
+    
+    :return: Dictionary conatining the loaded events, as in :py:data:`events`.
+    :rtype: dict(array, array, ...)
+    
+    """
+    
     events={}
     with h5py.File(name, 'r') as f:
         for key in f.keys(): 
@@ -100,44 +147,139 @@ def load_population(name, nEventsUse=None, calculate_params=[], keys_skip=[]):
 # Check: https://www.vercalendario.info/en/how/convert-ra-degrees-hours.html
 
 def ra_dec_from_th_phi_rad(theta, phi):
+    """
+    Compute :math:`\\alpha` and :math:`\delta` in :math:`\\rm rad` from :math:`\\theta` and :math:`\phi` in :math:`\\rm rad`.
+    
+    :param array or float theta: The :math:`\\theta` sky position angle(s) to convert, in :math:`\\rm rad`.
+    :param array or float phi: The :math:`\phi` sky position angle(s) to convert, in :math:`\\rm rad`.
+    
+    :return: :math:`\\alpha` and :math:`\delta` in :math:`\\rm rad`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     ra = phi #np.rad2deg(phi)
     dec = 0.5*np.pi - theta #np.rad2deg(0.5 * np.pi - theta)
     return ra, dec
 
 def th_phi_from_ra_dec_rad(ra, dec):
+    """
+    Compute :math:`\\theta` and :math:`\phi` in :math:`\\rm rad` from :math:`\\alpha` and :math:`\delta` in :math:`\\rm rad`.
+    
+    :param array or float ra: The :math:`\\alpha` sky position angle(s) to convert, in :math:`\\rm rad`.
+    :param array or float dec: The The :math:`\delta` sky position angle(s) angle(s) to convert, in :math:`\\rm rad`.
+    
+    :return: :math:`\\theta` and :math:`\phi` in :math:`\\rm rad`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     theta = 0.5 * np.pi - dec
     phi = ra
     return theta, phi
 
 
 def ra_dec_from_th_phi(theta, phi):
-        ra = np.rad2deg(phi)
-        dec = np.rad2deg(0.5 * np.pi - theta)
-        return ra, dec
+    """
+    Compute :math:`\\alpha` and :math:`\delta` in :math:`\\rm deg` from :math:`\\theta` and :math:`\phi` in :math:`\\rm rad`.
+    
+    :param array or float theta: The :math:`\\theta` sky position angle(s) to convert, in :math:`\\rm rad`.
+    :param array or float phi: The :math:`\phi` sky position angle(s) to convert, in :math:`\\rm rad`.
+    
+    :return: :math:`\\alpha` and :math:`\delta` in :math:`\\rm deg`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
+    ra = np.rad2deg(phi)
+    dec = np.rad2deg(0.5 * np.pi - theta)
+    return ra, dec
 
   
 def th_phi_from_ra_dec(ra, dec):
+    """
+    Compute :math:`\\theta` and :math:`\phi` in :math:`\\rm rad` from :math:`\\alpha` and :math:`\delta` in :math:`\\rm deg`.
+    
+    :param array or float ra: The :math:`\\alpha` sky position angle(s) to convert, in :math:`\\rm deg`.
+    :param array or float dec: The The :math:`\delta` sky position angle(s) angle(s) to convert, in :math:`\\rm deg`.
+    
+    :return: :math:`\\theta` and :math:`\phi` in :math:`\\rm rad`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     theta = 0.5 * np.pi - np.deg2rad(dec)
     phi = np.deg2rad(ra)
     return theta, phi
 
 def deg_min_sec_to_decimal_deg(d, m, s):
+    """
+    Convert one or multiple angles in degrees, minutes, seconds to decimal degrees.
+    
+    :param array or float d: The degrees of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The angle(s) in decimal degrees.
+    :rtype: array or float
+    
+    """
     return d + m/60 + s/3600
 
 def hr_min_sec_to_decimal_deg(h, m, s):
+    """
+    Convert one or multiple angles in hours, minutes, seconds to decimal degrees.
+    
+    :param array or float h: The hours of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The angle(s) in decimal degrees.
+    :rtype: array or float
+    
+    """
     # decimal degrees=15*h+15*m/60+15*s/3600.
     
     return 15*(h+m/60+s/3600)
 
 
 def deg_min_sec_to_rad(d, m, s):
+    """
+    Convert one or multiple angles in degrees, minutes, seconds to :math:`\\rm rad`.
+    
+    :param array or float d: The degrees of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The angle(s) in :math:`\\rm rad`.
+    :rtype: array or float
+    
+    """
     return deg_min_sec_to_decimal_deg(d, m, s)*np.pi/180
 
 def hr_min_sec_to_rad(h, m, s):
+    """
+    Convert one or multiple angles in hours, minutes, seconds to :math:`\\rm rad`.
+    
+    :param array or float h: The hours of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The angle(s) in :math:`\\rm rad`.
+    :rtype: array or float
+    
+    """
     return hr_min_sec_to_decimal_deg(h, m, s)*np.pi/180
 
 
 def rad_to_deg_min_sec(rad):
+    """
+    Convert one or multiple angles in :math:`\\rm rad` to degrees, minutes, seconds.
+    
+    Checks have been performed with `<https://www.calculatorsoup.com/calculators/conversions/convert-decimal-degrees-to-degrees-minutes-seconds.php>`_.
+    
+    :param array or float rad: The angle(s) in :math:`\\rm rad`.
+    
+    :return: The angle(s)' degrees, minutes, seconds.
+    :rtype: tuple(array, array, array) or tuple(float, float, float)
+    
+    """
     # check: https://www.calculatorsoup.com/calculators/conversions/convert-decimal-degrees-to-degrees-minutes-seconds.php
     
     d = np.floor(rad).astype(int)  
@@ -150,7 +292,15 @@ def rad_to_deg_min_sec(rad):
     return d, m, s
 
 def rad_to_hr_min_sec(rad):
+    """
+    Convert one or multiple angles in :math:`\\rm rad` to hours, minutes, seconds.
     
+    :param array or float rad: The angle(s) in :math:`\\rm rad`.
+    
+    :return: The angle(s)' hours, minutes, seconds.
+    :rtype: tuple(array, array, array) or tuple(float, float, float)
+    
+    """
     hh = rad/15
     h = np.floor(hh).astype(int)
     
@@ -162,6 +312,17 @@ def rad_to_hr_min_sec(rad):
     return h, m, s
 
 def hr_min_sec_string(h,m,s):
+    """
+    Convert one or multiple angles in hours, minutes, seconds to strings.
+    
+    :param array or float h: The hours of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The string(s) containing the angle(s).
+    :rtype: list(str) or str
+    
+    """
     #h,m,s = np.asarray(h), np.asarray(m), np.asarray(s)
     #s = int(np.round(s,0))
     try:
@@ -170,7 +331,17 @@ def hr_min_sec_string(h,m,s):
         return str((h))+'h'+str((m))+'m'+str(s)+'s'
 
 def deg_min_sec_string(d,m,s):
+    """
+    Convert one or multiple angles in degrees, minutes, seconds to strings.
     
+    :param array or float d: The degrees of the angle(s) to convert.
+    :param array or float m: The minutes of the angle(s) to convert.
+    :param array or float s: The seconds of the angle(s) to convert.
+    
+    :return: The string(s) containing the angle(s).
+    :rtype: list(str) or str
+    
+    """
     #d,m,s = np.asarray(d), np.asarray(m), np.asarray(s)
     #s = int(s)
     
@@ -180,14 +351,41 @@ def deg_min_sec_string(d,m,s):
         return  str((d))+'°'+str((m))+'m'+str(s)+'s'
     
 def theta_to_dec_degminsec(theta):
+    """
+    Compute :math:`\\delta` in degree, minutes, seconds from :math:`\\theta`.
+    
+    :param array or float theta: The :math:`\\theta` sky position angle(s) to convert.
+    
+    :return: :math:`\\delta` in degree, minutes, seconds.
+    :rtype: list(str) or str
+    
+    """
     dec = np.rad2deg(0.5 * np.pi - theta)
     return deg_min_sec_string(*rad_to_deg_min_sec(dec))
 
 def phi_to_ra_hrms(phi):
+    """
+    Compute :math:`\\alpha` in hours, minutes, seconds from :math:`\phi`.
+    
+    :param array or float phi: The :math:`\phi` sky position angle(s) to convert.
+    
+    :return: :math:`\\alpha` in hours, minutes, seconds.
+    :rtype: list(str) or str
+    
+    """
     ra = np.rad2deg(phi)
     return hr_min_sec_string(*rad_to_hr_min_sec(ra))
 
 def phi_to_ra_degminsec(phi):
+    """
+    Compute :math:`\\alpha` in degree, minutes, seconds from :math:`\phi`.
+    
+    :param array or float phi: The :math:`\phi` sky position angle(s) to convert.
+    
+    :return: :math:`\\alpha` in degree, minutes, seconds.
+    :rtype: list(str) or str
+    
+    """
     ra = np.rad2deg(phi)
     return deg_min_sec_string(*rad_to_deg_min_sec(ra)) #hr_min_sec_string(*rad_to_hr_min_sec(ra))
 
@@ -196,7 +394,16 @@ def phi_to_ra_degminsec(phi):
 ##############################################################################
 
 def Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta):
-    # Returns the dimensionless tidal deformability parameters Lambda_tilde and delta_Lambda as defined in PhysRevD.89.103012 eq. (5) and (6), as a function of the dimensionless tidal deformabilities of the two objects and the symmetric mass ratio
+    """
+    Compute the dimensionless tidal deformability combinations :math:`\\tilde{\Lambda}` and :math:`\delta\\tilde{\Lambda}`, defined in `arXiv:1402.5156 <https://arxiv.org/abs/1402.5156>`_ eq. (5) and (6), as a function of the dimensionless tidal deformabilities of the two objects and the symmetric mass ratio.
+    
+    :param array or float Lambda1: Tidal deformability of object 1, :math:`\Lambda_1`.
+    :param array or float Lambda2: Tidal deformability of object 2, :math:`\Lambda_2`.
+    :param array or float eta: The symmetric mass ratio(s), :math:`\eta`, of the objects.
+    :return: :math:`\\tilde{\Lambda}` and :math:`\delta\\tilde{\Lambda}`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     eta2 = eta*eta
     # This is needed to stabilize JAX derivatives
     Seta = jnp.sqrt(jnp.where(eta<0.25, 1.0 - 4.0*eta, 0.))
@@ -208,28 +415,46 @@ def Lamt_delLam_from_Lam12(Lambda1, Lambda2, eta):
     return Lamt, delLam
     
 def Lam12_from_Lamt_delLam(Lamt, delLam, eta):
-        # inversion of Wade et al, PhysRevD.89.103012, eq. (5) and (6)
-        eta2 = eta*eta
-        Seta = jnp.sqrt(jnp.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+    """
+    Compute the dimensionless tidal deformabilities of the two objects as a function of the dimensionless tidal deformability combinations :math:`\\tilde{\Lambda}` and :math:`\delta\\tilde{\Lambda}`, defined in `arXiv:1402.5156 <https://arxiv.org/abs/1402.5156>`_ eq. (5) and (6), and the symmetric mass ratio.
+    
+    :param array or float Lamt: Tidal deformability combination :math:`\\tilde{\Lambda}`.
+    :param array or float delLam: Tidal deformability combination :math:`\delta\\tilde{\Lambda}`.
+    :param array or float eta: The symmetric mass ratio(s), :math:`\eta`, of the objects.
+    :return: :math:`\Lambda_1` and :math:`\Lambda_2`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
         
-        mLp=(8./13.)*(1.+ 7.*eta-31.*eta2)
-        mLm=(8./13.)*Seta*(1.+ 9.*eta-11.*eta2)
-        mdp=Seta*(1.-(13272./1319.)*eta+(8944./1319.)*eta2)*0.5
-        mdm=(1.-(15910./1319.)*eta+(32850./1319.)*eta2+(3380./1319.)*(eta2*eta))*0.5
+    eta2 = eta*eta
+    Seta = jnp.sqrt(jnp.where(eta<0.25, 1.0 - 4.0*eta, 0.))
+    
+    mLp=(8./13.)*(1.+ 7.*eta-31.*eta2)
+    mLm=(8./13.)*Seta*(1.+ 9.*eta-11.*eta2)
+    mdp=Seta*(1.-(13272./1319.)*eta+(8944./1319.)*eta2)*0.5
+    mdm=(1.-(15910./1319.)*eta+(32850./1319.)*eta2+(3380./1319.)*(eta2*eta))*0.5
 
-        det=(306656./1319.)*(eta**5)-(5936./1319.)*(eta**4)
+    det=(306656./1319.)*(eta**5)-(5936./1319.)*(eta**4)
 
-        Lambda1 = ((mdp-mdm)*Lamt+(mLm-mLp)*delLam)/det
-        Lambda2 = ((-mdm-mdp)*Lamt+(mLm+mLp)*delLam)/det
-        
-        return Lambda1, Lambda2
+    Lambda1 = ((mdp-mdm)*Lamt+(mLm-mLp)*delLam)/det
+    Lambda2 = ((-mdm-mdp)*Lamt+(mLm+mLp)*delLam)/det
+    
+    return Lambda1, Lambda2
 
 ##############################################################################
 # MASSES
 ##############################################################################
 
 def m1m2_from_Mceta(Mc, eta):
-    # Function to compute the component masses of a binary given its chirp mass and symmetric mass ratio
+    """
+    Compute the component masses of a binary given its chirp mass and symmetric mass ratio.
+    
+    :param array or float Mc: Chirp mass of the binary, :math:`{\cal M}_c`.
+    :param array or float eta: The symmetric mass ratio(s), :math:`\eta`, of the objects.
+    :return: :math:`m_1` and :math:`m_2`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
     m1 = 0.5*(Mc/(eta**(3./5.)))*(1. + Seta)
     m2 = 0.5*(Mc/(eta**(3./5.)))*(1. - Seta)
@@ -237,7 +462,15 @@ def m1m2_from_Mceta(Mc, eta):
     return m1, m2
     
 def Mceta_from_m1m2(m1, m2):
-    # Function to compute the chirp mass and symmetric mass ratio of a binary given its component masses
+    """
+    Compute the chirp mass and symmetric mass ratio of a binary given its component masses.
+    
+    :param array or float m1: Mass of the primary object, :math:`m_1`.
+    :param array or float m2: Mass of the secondary object, :math:`m_2`.
+    :return: :math:`{\cal M}_c` and :math:`\eta`.
+    :rtype: tuple(array, array) or tuple(float, float)
+    
+    """
     Mc  = ((m1*m2)**(3./5.))/((m1+m2)**(1./5.))
     eta = (m1*m2)/((m1+m2)*(m1+m2))
     
@@ -248,6 +481,18 @@ def Mceta_from_m1m2(m1, m2):
 ##############################################################################
 
 def zrot(angle, vx, vy, vz):
+    """
+    Perofrm a rotation of the components of a vector around the :math:`z` axis by a given angle.
+    
+    :param array or float angle: Rotation angle(s).
+    :param array or float vx: The :math:`x` component(s) of the vector(s).
+    :param array or float vy: The :math:`y` component(s) of the vector(s).
+    :param array or float vz: The :math:`z` component(s) of the vector(s).
+    
+    :return: The components of the rotated vector(s) around :math:`z`.
+    :rtype: tuple(array, array, array) or tuple(float, float, float)
+    
+    """
     # Function to perofrm a rotation of the components of a vector around the z axis by a given angle
     tmp = vx*np.cos(angle) - vy*np.sin(angle)
     yy  = vx*np.sin(angle) + vy*np.cos(angle)
@@ -255,6 +500,18 @@ def zrot(angle, vx, vy, vz):
     return xx, yy, vz
 
 def yrot(angle, vx, vy, vz):
+    """
+    Perofrm a rotation of the components of a vector around the :math:`y` axis by a given angle.
+    
+    :param array or float angle: Rotation angle(s).
+    :param array or float vx: The :math:`x` component(s) of the vector(s).
+    :param array or float vy: The :math:`y` component(s) of the vector(s).
+    :param array or float vz: The :math:`z` component(s) of the vector(s).
+    
+    :return: The components of the rotated vector(s) around :math:`y`.
+    :rtype: tuple(array, array, array) or tuple(float, float, float)
+    
+    """
     # Function to perofrm a rotation of the components of a vector around the y axis by a given angle
     tmp = vx*np.cos(angle) + vz*np.sin(angle)
     zz  = - vx*np.sin(angle) + vz*np.cos(angle)
@@ -262,18 +519,27 @@ def yrot(angle, vx, vy, vz):
     return xx, vy, zz
 
 def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1, chi2, Mc, eta, fRef, phiRef):
-    # Computes the components of the spin in cartesian frame given the angular variables
-    # Adapted from LALSimInspiral.c, function XLALSimInspiralTransformPrecessingNewInitialConditions, line 5885.
-    # The input masses in this case are Mc (in units of Msun) and eta
-    # For a scheme of the conventions, see https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html
-    '''
-    thetaJN is the inclination between total angular momentum (J) and the direction of propagation
-            (so that thetaJN -> iota for S_{1}+S_{2} -> 0).
-    phiJL is the azimuthal angle of L_N on its cone about J.
-    theta1 and theta2 are the inclinations (tilt angles) of S_{1,2} measured from the Newtonian orbital angular momentum (L_N).
-    phi12 is the difference in azimuthal angles of S_{1,2}.
-    chi1, chi2 are the dimensionless spin magnitudes.
-    '''
+    """
+    Compute the components of the spin in cartesian frame given the angular variables.
+    Adapted from :py:class:`LALSimInspiral.c`, function :py:class:`XLALSimInspiralTransformPrecessingNewInitialConditions`, line 5885.
+    For a scheme of the conventions, see `<https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html>`_.
+    
+    :param array or float thetaJN: Inclination between total angular momentum (:math:`J`) and the direction of propagation, :math:`\\theta_{JN}` (so that :math:`\\theta_{JN} \\to \iota` for :math:`\\chi_1 + \\chi_2 \\to 0`).
+    :param array or float phiJL: Azimuthal angle of the Newtonian orbital angular momentum :math:`L_N` on its cone about the total angular momentum :math:`J`, :math:`\phi_{JL}`.
+    :param array or float theta1: Inclination (tilt angle) of object 1 measured from the Newtonian orbital angular momentum (:math:`L_N`), :math:`\\theta_{s,1}`.
+    :param array or float theta2: Inclination (tilt angle) of object 2 measured from the Newtonian orbital angular momentum (:math:`L_N`), :math:`\\theta_{s,2}`.
+    :param array or float phi12: Difference in azimuthal angles between the two spins, :math:`\phi_{1,2}`.
+    :param array or float chi1: Dimensionless spin magnitude of object 1, :math:`\chi_1`.
+    :param array or float chi2: Dimensionless spin magnitude of object 2, :math:`\chi_2`.
+    :param array or float Mc: Chirp mass of the binary, :math:`{\cal M}_c`, in units of :math:`\\rm M_{\odot}`.
+    :param array or float eta: The symmetric mass ratio(s), :math:`\eta`, of the objects.
+    :param array or float fRef: Reference frequency, in :math:`\\rm Hz`.
+    :param array or float phiRef: Reference phase, in :math:`\\rm rad`.
+    
+    :return: :math:`\iota`, :math:`\chi_{1,x}`, :math:`\chi_{1,y}`, :math:`\chi_{1,z}`, :math:`\chi_{2,x}`, :math:`\chi_{2,y}`, :math:`\chi_{2,z}`.
+    :rtype: tuple(array, array, array, array, array, array, array) or tuple(float, float, float, float, float, float, float)
+    
+    """
     
     LNhx = 0.
     LNhy = 0.
@@ -364,11 +630,27 @@ def TransformPrecessing_angles2comp(thetaJN, phiJL, theta1, theta2, phi12, chi1,
     return iota, S1x, S1y, S1z, S2x, S2y, S2z
 
 def TransformPrecessing_comp2angles(iota, S1x, S1y, S1z, S2x, S2y, S2z, Mc, eta, fRef, phiRef):
-    # Inverse of TransformPrecessing_angles2comp
-    # Computes the angular variables of the spins given the components in cartesian frame
-    # Adapted from LALSimInspiral.c, function XLALSimInspiralTransformPrecessingWvf2PE, line 6105.
-    # The input masses in this case are Mc (in units of Msun) and eta
-    # For the conventions, see https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html
+    """
+    Compute the angular variables of the spins given the components in cartesian frame
+    Adapted from :py:class:`LALSimInspiral.c`, function :py:class:`XLALSimInspiralTransformPrecessingWvf2PE`, line 6105.
+    For a scheme of the conventions, see `<https://lscsoft.docs.ligo.org/lalsuite/lalsimulation/group__lalsimulation__inference.html>`_.
+    
+    :param array or float iota: Inclination between the orbital angular momentum and the direction of propagation.
+    :param array or float S1x: spin of object 1 along the axis :math:`x`, :math:`\chi_{1,x}`.
+    :param array or float S1y: spin of object 1 along the axis :math:`y`, :math:`\chi_{1,y}`.
+    :param array or float S1z: spin of object 1 along the axis :math:`z`, :math:`\chi_{1,z}`.
+    :param array or float S2x: spin of object 2 along the axis :math:`x`, :math:`\chi_{2,x}`.
+    :param array or float S2y: spin of object 2 along the axis :math:`y`, :math:`\chi_{2,y}`.
+    :param array or float S2z: spin of object 2 along the axis :math:`z`, :math:`\chi_{2,z}`.
+    :param array or float Mc: Chirp mass of the binary, :math:`{\cal M}_c`, in units of :math:`\\rm M_{\odot}`.
+    :param array or float eta: The symmetric mass ratio(s), :math:`\eta`, of the objects.
+    :param array or float fRef: Reference frequency, in :math:`\\rm Hz`.
+    :param array or float phiRef: Reference phase, in :math:`\\rm rad`.
+    
+    :return: :math:`\\theta_{JN}`, :math:`\phi_{JL}`, :math:`\\theta_{s,1}`, :math:`\\theta_{s,2}`, :math:`\phi_{1,2}`, :math:`\chi_1`, :math:`\chi_2`.
+    :rtype: tuple(array, array, array, array, array, array, array) or tuple(float, float, float, float, float, float, float)
+    
+    """
     
     LNhx = 0.
     LNhy = 0.
@@ -449,24 +731,45 @@ def GPSt_to_J200t(t_GPS):
     return t_GPS - 630763148.0
         
 def GPSt_to_LMST(t_GPS, lat, long):
-  # Returns the Local Mean Sidereal Time in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
-  from astropy.coordinates import EarthLocation
-  import astropy.time as aspyt
-  import astropy.units as u
-  # Uncomment the next two lines in case of troubles with IERS
-  #import astropy
-  #astropy.utils.iers.conf.iers_degraded_accuracy='ignore'
+    """
+    Compute the Local Mean Sidereal Time (LMST) in units of fraction of day, from GPS time and location (given as latitude and longitude in degrees)
+    
+    :param array or float t_GPS: GPS time(s) to convert, in seconds.
+    :param float lat: Latitude of the chosen location, in :math:`\\rm deg`.
+    :param float long: Longitude of the chosen location, in :math:`\\rm deg`.
+    
+    :return: Local Mean Sidereal Time(s).
+    :rtype: array or float
+    
+    """
+    from astropy.coordinates import EarthLocation
+    import astropy.time as aspyt
+    import astropy.units as u
+    # Uncomment the next two lines in case of troubles with IERS
+    #import astropy
+    #astropy.utils.iers.conf.iers_degraded_accuracy='ignore'
   
-  loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
-  t = aspyt.Time(t_GPS, format='gps', location=(loc))
-  LMST = t.sidereal_time('mean').value
-  return jnp.array(LMST/24.)
+    loc = EarthLocation(lat=lat*u.deg, lon=long*u.deg)
+    t = aspyt.Time(t_GPS, format='gps', location=(loc))
+    LMST = t.sidereal_time('mean').value
+    return jnp.array(LMST/24.)
 
 ##############################################################################
 # SPHERICAL HARMONICS
 ##############################################################################
 
 def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
+    """
+    Compute the total signal from a collection of different modes.
+    
+    :param dict(array, array, ...) Ampl: Dictionary containing the amplitudes for each mode computed on a grid of frequencies. The keys are expected to be stings made up of :math:`l` and :math:`m`, e.g. for :math:`(2,2)` --> key= ``'22'``.
+    :param dict(array, array, ...) Phi: Dictionary containing the phases for each mode computed on a grid of frequencies.
+    :param array or float iota: The inclination angle(s) of the system(s) with respect to orbital angular momentum, :math:`\iota`, in :math:`\\rm rad`.
+    :param array or float phi: The second angular direction of the spherical coordinate system.
+    :return: Plus and cross polarisations of the GW for the chosen events evaluated on the frequency grid.
+    :rtype: tuple(array, array)
+    
+    """
     # Function to compute the total signal from a collection of different modes
     # Ampl and Phi have to be dictionaries containing the amplitudes and phases, computed on a grid of frequencies, for
     # each mode. The keys are expected to be stings made up of l and m, e.g. for (2,2) -> key='22'
@@ -554,50 +857,163 @@ def Add_Higher_Modes(Ampl, Phi, iota, phi=0.):
     return hp, hc
 
 ##############################################################################
+# DETECTOR RELATIVE ORIENTATION AND DISTANCE
+##############################################################################
+
+def ang_btw_dets_GC(det1, det2):
+    """
+    Compute the angle between two detectors with respect to the great circle that joins them, see `<https://en.wikipedia.org/wiki/Great-circle_navigation>`_.
+    
+    :param dict(float, float, float) det1: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the first detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    :param dict(float, float, float) det2: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the second detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    
+    :return: Angle between the two detectors, in :math:`\\rm deg`.
+    :rtype: float
+    
+    """
+    lat1, lat2   = np.deg2rad(det1['lat']), np.deg2rad(det2['lat'])
+    long1, long2 = np.deg2rad(det1['long']), np.deg2rad(det2['long'])
+    
+    def initial_course(lat1, lat2, long1, long2):
+        # Compute the course at the initial point given two points
+        # See http://www.edwilliams.org/avform147.htm#Crs or https://en.wikipedia.org/wiki/Great-circle_navigation
+        a = np.sin(long2-long1)*np.cos(lat2)
+        b = np.cos(lat1)*np.sin(lat2)-np.sin(lat1)*np.cos(lat2)*np.cos(long2-long1)
+
+        # If the initial point is a pole we need a "fix"
+        return np.rad2deg(np.where(np.isclose(np.cos(lat1), 0.), np.where(lat1 > 0., np.pi, 2.*np.pi), np.arctan2(a,b)))
+    
+    def final_course(lat1, lat2, long1, long2):
+        # Compute the course at the final point given two points
+        # See http://www.edwilliams.org/avform147.htm#Crs or https://en.wikipedia.org/wiki/Great-circle_navigation
+        a = np.sin(long2-long1)*np.cos(lat1)
+        b = -np.cos(lat2)*np.sin(lat1)+np.sin(lat2)*np.cos(lat1)*np.cos(long2-long1)
+
+        # If the final point is a pole we need a "fix"
+        return np.rad2deg(np.where(np.isclose(np.cos(lat2), 0.), np.where(lat2 > 0., np.pi, 2.*np.pi), np.arctan2(a,b)))
+    
+    # Compute the course at the first detector
+    ang1 = initial_course(lat1, lat2, long1, long2)
+    # Compute the course at the second detector
+    ang2 = final_course(lat1, lat2, long1, long2)
+
+    angdiff = 360.-(ang2-ang1)
+
+    return (det1['xax'] - det2['xax']) + np.where(angdiff<180.,angdiff, angdiff-360.)
+
+def dist_btw_dets_GC(det1, det2):
+    """
+    Compute the great circle distance between two detectors using the Vincenty formula in spherical case, see `<https://en.wikipedia.org/wiki/Great-circle_distance>`_.
+    
+    :param dict(float, float, float) det1: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the first detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    :param dict(float, float, float) det2: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the second detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    
+    :return: Great circle distance between the detectors, in :math:`\\rm km`.
+    :rtype: float
+    
+    """
+
+    lat1, lat2   = np.deg2rad(det1['lat']), np.deg2rad(det2['lat'])
+    long1, long2 = np.deg2rad(det1['long']), np.deg2rad(det2['long'])
+    dlong = long2 - long1
+
+    num = np.sqrt((np.cos(lat2)*np.sin(dlong))**2 + (np.cos(lat1)*np.sin(lat2) - np.sin(lat1)*np.cos(lat2)*np.cos(dlong))**2)
+    den = np.sin(lat1)*np.sin(lat2) + np.cos(lat1)*np.cos(lat2)*np.cos(dlong)
+
+    return glob.REarth*np.arctan2(num, den)
+
+def dist_btw_dets_Chord(det1, det2):
+    """
+    Compute the great circle chord length between two detectors, see `<https://en.wikipedia.org/wiki/Great-circle_distance>`_.
+    
+    :param dict(float, float, float) det1: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the first detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    :param dict(float, float, float) det2: Dictionary containing the latitude, ``'lat'``, longitude, ``'long'``, and orientation, ``'xax'``, of the second detector (all in degrees), as in :py:data:`gwfast.gwfastGlobals.detectors`.
+    
+    :return: Great circle chord length between the detectors, in :math:`\\rm km`.
+    :rtype: float
+    
+    """
+    
+    lat1, lat2   = np.deg2rad(det1['lat']), np.deg2rad(det2['lat'])
+    long1, long2 = np.deg2rad(det1['long']), np.deg2rad(det2['long'])
+
+    dx = np.cos(lat2)*np.cos(long2) - np.cos(lat1)*np.cos(long1)
+    dy = np.cos(lat2)*np.sin(long2) - np.cos(lat1)*np.sin(long1)
+    dz = np.sin(lat2) - np.sin(lat1)
+
+    return glob.REarth*np.sqrt(dx*dx + dy*dy + dz*dz)
+    
+##############################################################################
 # OTHERS
 ##############################################################################
 
 def check_evparams(evParams):
-        # Function to check the format of the events' parameters and make the needed conversions
+    """
+    Check the format of the events parameters and make the needed conversions.
+    
+    :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
+    
+    """
+    # Function to check the format of the events' parameters and make the needed conversions
+    try:
+        _ = evParams['tcoal']
+    except KeyError:
         try:
-            _ = evParams['tcoal']
+            print('Adding tcoal from tGPS')
+            # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
+            evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
         except KeyError:
-            try:
-                print('Adding tcoal from tGPS')
-                # In the code we use Greenwich Mean Sidereal Time (LMST computed at long = 0. deg) as convention, so convert t_GPS
-                evParams['tcoal'] = GPSt_to_LMST(evParams['tGPS'], lat=0., long=0.)
-            except KeyError:
-                raise ValueError('One among tGPS and tcoal has to be provided.')
-        #try:
-        #    _ =evParams['chi1z']
-        #except KeyError:
-        #    try:
-        #        print('Adding chi1z, chi2z from chiS, chiA')
-        #        evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
-        #        evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
-        #    except KeyError:
-        #        raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
-                
+            raise ValueError('One among tGPS and tcoal has to be provided.')
+    
+    try:
+        _ = evParams['iota']
+    except KeyError:
         try:
-            _ = evParams['theta']
+            # In the precessing spin case, iota is different from thetaJN, and is computed later. This is just a fix.
+            evParams['iota'] = evParams['thetaJN']
         except KeyError:
-            try:
-                print('Adding theta,phi from ra,dec')
-                evParams['theta'] = np.pi/2-evParams['dec']
-                evParams['phi']=evParams['ra']
-            except KeyError:
-                raise ValueError('Two among theta, phi and ra, dec have to be provided.')
-        return evParams
+            raise ValueError('One among iota and thetaJN has to be provided.')
+    
+    try:
+        _ = evParams['Mc']
+    except KeyError:
+        try:
+            print('Adding Mc and eta from the individual detector-frame masses')
+            evParams['Mc'], evParams['eta'] = Mceta_from_m1m2(evParams['m1'], evParams['m2'])
+        except KeyError:
+            raise ValueError('Two among (Mc, eta) and (m1, m2) have to be provided.')
+    #try:
+    #    _ =evParams['chi1z']
+    #except KeyError:
+    #    try:
+    #        print('Adding chi1z, chi2z from chiS, chiA')
+    #        evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
+    #        evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
+    #    except KeyError:
+    #        raise ValueError('Two among chi1z, chi2z and chiS, chiA have to be provided.')
+            
+    try:
+        _ = evParams['theta']
+    except KeyError:
+        try:
+            print('Adding (theta, phi) from (ra, dec)')
+            evParams['theta'] = np.pi/2-evParams['dec']
+            evParams['phi']=evParams['ra']
+        except KeyError:
+            raise ValueError('Two among (theta, phi) and (ra, dec) have to be provided.')
+    return evParams
                 
                 
              
 
 class RegularGridInterpolator_JAX:
     """
-    Implementation of SciPy's RegularGridInterpolator in a JAX usable way. Essentially numpy in the original code is changed to jax.numpy because of assignement issues, arising when using vmap and jacrev. We also changed += syntax which creates issues in JAX
+    Implementation of ``SciPy`` 's :py:class:`RegularGridInterpolator` in a ``JAX`` usable way. Essentially ``numpy`` in the original code is changed to ``jax.numpy`` because of assignement issues, arising when using ``vmap`` and ``jacrev``. We also changed the ``+=`` syntax which creates issues in ``JAX``.
     
-    NOTE: bounds_error=True still does not work with vmap and jacrev
+    NOTE: ``bounds_error=True`` still does not work with ``vmap`` and jacrev``.
     
+    """
+    """
     Interpolation on a regular grid in arbitrary dimensions
     The data must be defined on a regular grid; the grid spacing however may be
     uneven. Linear and nearest-neighbor interpolation are supported. After
