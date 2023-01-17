@@ -22,6 +22,7 @@ For further documentation refer to the release papers `arXiv:2207.02771 <https:/
    single_detector
    detector_networks
    fisher_tools
+   run_script
    additional_definitions
 
 .. toctree::

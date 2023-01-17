@@ -733,7 +733,7 @@ parser.add_argument("--fmin", default=2., type=float, required=False, help='Mini
 parser.add_argument("--fmax", default=None, type=float, required=False, help='Maximum frequency of the grid, in Hz. If not specified, this coincides with the cut frequency of the waveform.')
 parser.add_argument("--compute_fisher", default=1, type=int, required=False, help='Int specifying if the FIMs have to be computed (``1``) or not (``0``).')
 parser.add_argument("--net", nargs='+', default=['ETS', ], type=str, required=False, help='The network of detectors to be used, separated by *single spacing*.')
-parser.add_argument("--netfile", default=None, type=str, required=False, help='``json`` file containing the detector configuration, alternative to **--\ --net** and **--\ --psds**.')
+parser.add_argument("--netfile", default=None, type=str, required=False, help='``json`` file containing the detector configuration, alternative to **--net** and **--psds**.')
 parser.add_argument("--psds", nargs='+', default=['ET-0000A-18.txt', ], type=str, required=False, help='The paths to PSDs of each detector in the network inside the folder ``psds/``, separated by *single spacing*.')
 parser.add_argument("--mpi", default=0, type=int, required=False, help='Int specifying if the code has to parallelize using multiprocessing (``0``), or using MPI (``1``), suitable for clusters.')
 parser.add_argument("--duty_factor", default=1., type=float, required=False, help='Duty factor of the detectors (the same is used for all detectors in a network).')
