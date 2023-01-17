@@ -31,5 +31,3 @@ python:
       path: .
     - requirements: requirements.txt
     - requirements: docs/docs_requirements.txt
-    - method: pip
-      path: jax[cpu]
