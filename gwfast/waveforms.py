@@ -44,17 +44,38 @@ except ModuleNotFoundError:
 ##############################################################################
 
 class WaveFormModel(ABC):
-    '''
+    """
     Abstract class to compute waveforms
-    '''
+    
+    :param str objType: The kind of system the wf model is made for, can be ``'BBH'``, ``'BNS'`` or ``'NSBH'``.
+    :param float fcutPar: The cut frequency factor of the waveform. This can either be given in :math:`\\rm Hz`, as for :py:class:`gwfast.waveforms.TaylorF2_RestrictedPN`, or as an adimensional frequency (Mf), as for the IMR models.
+    :param bool, optional is_newtonian: Boolean specifying if the waveform is a simple Newtonian inspiral.
+    :param bool, optional is_tidal: Boolean specifying if the waveform includes tidal effects.
+    :param bool, optional is_HigherModes: Boolean specifying if the waveform includes the contribution of sub-dominant (higher-order) modes.
+    :param bool, optional is_chi1chi2: Boolean specifying if, in the aligned spins only case, the individual spins are used in place of the ``'chiS'`` and ``'chiA'`` combinations.
+    :param bool, optional is_Precessing: Boolean specifying if the waveform includes spin-precession effects.
+    :param bool, optional is_LAL: Boolean specifying if the waveform comes from the ``LAL`` library.
+    :param bool, optional is_prec_ang: Boolean specifying if, in the precessing spin case, the angular variables of the spins are used, namely ``'thetaJN'``, ``'chi1'``, ``'chi2'``, ``'tilt1'``, ``'tilt2'``, ``'phiJL'``, ``'phi12'``.
+    :param bool, optional is_eccentric: Boolean specifying if the waveform includes orbital eccentricity.
+    
+    """
     
     def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=True, is_Precessing=False, is_LAL=False, is_prec_ang=False, is_eccentric=False):
+        """
+        Constructor method
+        """
         # The kind of system the wf model is made for, can be 'BBH', 'BNS' or 'NSBH'
         self.objType = objType 
         # The cut frequency factor of the waveform, in Hz, to be divided by Mtot (in units of Msun). The method fcut can be redefined, as e.g. in the IMRPhenomD implementation, and fcutPar can be passed as an adimensional frequency (Mf)
         self.fcutPar = fcutPar
-        # Note that the Fisher is computed for chiS and chiA, but the waveforms accept as input only chi1z and chi2z
+        
+        # Dictionary containing the order in which the parameters will appear in the Fisher matrix
         self.ParNums = {'Mc':0, 'eta':1, 'dL':2, 'theta':3, 'phi':4, 'iota':5, 'psi':6, 'tcoal':7, 'Phicoal':8, 'chiS':9,  'chiA':10}
+        """
+        Dictionary containing the number of the rows/columns in which the parameters will appear in the Fisher matrix.
+        
+        :type: dict(int)
+        """
         self.is_newtonian=is_newtonian
         self.is_tidal=is_tidal
         self.is_HigherModes = is_HigherModes
@@ -115,27 +136,59 @@ class WaveFormModel(ABC):
             self.ParNums.pop('chi1y')
             self.ParNums.pop('chi2y')
             self.ParNums.pop('iota')
+        
+        self.ParNums = dict(sorted(self.ParNums.items(), key=lambda item: item[1]))
     @abstractmethod    
-    def Phi(self, f, **kwargs): 
-        # The frequency of the GW, as a function of frequency
-        # With reference to the book M. Maggiore - Gravitational Waves Vol. 1, with Phi we mean only
-        # the GW frequency, not the full phase of the signal, given by 
-        # Psi+(f) = 2 pi f t_c - Phi0 - pi/4 - Phi(f)
+    def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+
+        We compute here only the GW phase, not the full phase of the signal, which also includes the reference phase and the time of coalescence.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         pass
     
     @abstractmethod
     def Ampl(self, f, **kwargs):
-        # The amplitude of the signal as a function of frequency
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         pass
         
     def tau_star(self, f, **kwargs):
         # The relation among the time to coalescence (in seconds) and the frequency (in Hz). We use as default 
         # the expression in M. Maggiore - Gravitational Waves Vol. 1 eq. (4.21), valid in Newtonian and restricted PN approximation
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         return 2.18567 * ((1.21/kwargs['Mc'])**(5./3.)) * ((100/f)**(8./3.))
     
     def fcut(self, **kwargs):
-        # The cut frequency of the waveform. In general this can be approximated as 2f_ISCO, but for complete waveforms
-        # the expression is different
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
+        
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         return self.fcutPar/(kwargs['Mc']/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
@@ -143,21 +196,48 @@ class WaveFormModel(ABC):
 ##############################################################################
 
 class NewtInspiral(WaveFormModel):
-    '''
-    Leading order (inspiral only) waveform model
-    '''
+    """
+    Leading order inspiral only waveform model.
     
+    Relevant references: `M. Maggiore -- Gravitational Waves Vol. 1 <https://global.oup.com/academic/product/gravitational-waves-9780198570745?q=Michele%20Maggiore&lang=en&cc=it>`_, chapter 4.
+        
+    
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`.
+    
+    """
     def __init__(self, **kwargs):
+        """
+        Constructor method
+        """
         # Cut from M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1) it seems be that, for BNS in the non-tidal case, the cut frequency should be lowered to (0.04/(2.*np.pi*glob.GMsun_over_c3))/Mtot.
         super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3), is_newtonian=True, **kwargs)
     
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+
+        We compute here only the GW phase, not the full phase of the signal, which also includes the reference phase and the time of coalescence.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         phase = 3.*0.25*(glob.GMsun_over_c3*kwargs['Mc']*8.*np.pi*f)**(-5./3.)
         return phase - np.pi*0.25
     
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
         
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         amplitude = np.sqrt(5./24.) * (np.pi**(-2./3.)) * glob.clightGpc/kwargs['dL'] * (glob.GMsun_over_c3*kwargs['Mc'])**(5./6.) * (f**(-7./6.))
         return amplitude
 
@@ -166,8 +246,22 @@ class NewtInspiral(WaveFormModel):
 ##############################################################################
 
 class LAL_WF(WaveFormModel):
+    """
+    Wrapper for using `LAL <https://wiki.ligo.org/Computing/LALSuite>`_ waveforms.
+    
+    :param str approximant: Name of the waveform model to use, as reported in ``LAL``. If an invalid name is provided, the code will list the names of all the available Fourier domain approximants.
+    :param float, optional fcutPar: The cut frequency factor of the waveform as an adimensional frequency (Mf).
+    :param bool, optional is_tidal: Boolean specifying if the waveform includes tidal effects.
+    :param bool, optional is_HigherModes: Boolean specifying if the waveform includes the contribution of sub-dominant (higher-order) modes.
+    :param bool, optional is_Precessing: Boolean specifying if the waveform includes spin-precession effects.
+    :param bool, optional is_eccentric: Boolean specifying if the waveform includes orbital eccentricity.
+    :param float, optional fRef_ecc: The reference frequency for the provided eccentricity, :math:`f_{e_{0}}`.
+    :param bool, optional compute_sequence: Boolean to specify which ``LAL`` function to use among :py:class:`SimInspiralChooseFDWaveformSequence` (``True``) and :py:class:`SimInspiralChooseFDWaveform` (``False``).
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+    
+    """
     '''
-    Wrapper for using LAL waveforms. Note that this does not work with JAX computation of derivatives.
+    Note that this does not work with JAX computation of derivatives.
     
     NOTE: as a defualt, we use the LAL function SimInspiralChooseFDWaveformSequence, which computes the waveform on a
     given frequency grid. However, this shows numerical issues with some waveform models (e.g. IMRPhenomXHM), we thus
@@ -175,12 +269,14 @@ class LAL_WF(WaveFormModel):
     the computation on a LAL defined grid, which then has to be interpolated, resulting in less accurate evaluation at
     low frequencies and slower execution time.
     This can be chosen with the boolean compute_sequence: setting it to True means that the function will perform
-    the computation direclty on the user gris, setting it to False it will let LAL choose the grid and then extrapolate
+    the computation directly on the user grid, setting it to False it will let LAL choose the grid and then extrapolate
     
     '''
     
     def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False, is_eccentric=False, compute_sequence=True, fRef_ecc=None, **kwargs):
-        
+        """
+        Constructor method
+        """
         if is_tidal:
             objectT = 'BNS'
         else:
@@ -206,19 +302,45 @@ class LAL_WF(WaveFormModel):
         super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_eccentric=is_eccentric, is_LAL=True, **kwargs)
     
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         
         hps, _ = self.hphc(f, **kwargs)
         
         return np.unwrap(np.angle(hps))
 
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         
         hps, _ = self.hphc(f, **kwargs)
         
         return abs(hps)
     
     def hphc(self, f, **kwargs):
-                
+        """
+        Compute the plus and cross polarisations of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: Plus and cross polarisations of the GW for the chosen events evaluated on the frequency grid.
+        :rtype: tuple(array, array)
+        
+        """
         m1, m2 = utils.m1m2_from_Mceta(kwargs['Mc'], kwargs['eta'])
         
         if not self.is_Precessing:
@@ -318,6 +440,17 @@ class LAL_WF(WaveFormModel):
         return hps, hcs
     
     def tau_star(self, f, **kwargs):
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         # We use the expression in arXiv:0907.0700 eq. (3.8b)
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
@@ -333,7 +466,14 @@ class LAL_WF(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
         
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
@@ -341,15 +481,41 @@ class LAL_WF(WaveFormModel):
 ##############################################################################
 
 class TEOBResumSPA_WF(WaveFormModel):
+    """
+    Wrapper for using TEOBResumSPA waveforms.
+    
+    Relevant references:
+        [1] `arXiv:1406.6913 <https://arxiv.org/abs/1406.6913>`_
+        
+        [2] `arXiv:1506.08457 <https://arxiv.org/abs/1506.08457>`_
+        
+        [3] `arXiv:1806.01772 <https://arxiv.org/abs/1806.01772>`_
+        
+        [4] `arXiv:1904.09550 <https://arxiv.org/abs/1904.09550>`_
+        
+        [5] `arXiv:2001.09082 <https://arxiv.org/abs/2001.09082>`_
+        
+        [6] `arXiv:2012.00027 <https://arxiv.org/abs/2012.00027>`_
+        
+        [7] `arXiv:2104.07533 <https://arxiv.org/abs/2104.07533>`_
+        
+    :param list(list) modes: List of modes to use in the waveform, each one being a list of two elements, representing :math:`l` and :math:`m`, respectively.
+    :param float, optional fcutPar: The cut frequency factor of the waveform as an adimensional frequency (Mf).
+    :param bool, optional is_tidal: Boolean specifying if the waveform includes tidal effects.
+    :param bool, optional is_Precessing: Boolean specifying if the waveform includes spin-precession effects.
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+    
+    """
     '''
-    Wrapper for using TEOBResumSPA waveforms
     TEOBResumS is available at https://bitbucket.org/eob_ihes/teobresums/src/master/
     For references see arXiv:2104.07533, arXiv:2012.00027, arXiv:2001.09082, arXiv:1904.09550, arXiv:1806.01772, arXiv:1506.08457, arXiv:1406.6913
     '''
 
     def __init__(self, modes=[[2,1], [2,2], [3,1], [3,2], [3,3], [4,1], [4,2], [4,3], [4,4]], fcutPar=0.3, is_tidal=False, is_Precessing=False, **kwargs):
+        """
+        Constructor method
+        """
         # modes is a list of modes to use in the waveform, each one being a list of two elements, representing l and m, respectively
-        
         if is_tidal:
             objectT = 'BNS'
         else:
@@ -368,19 +534,44 @@ class TEOBResumSPA_WF(WaveFormModel):
         super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_LAL=True, **kwargs)
     
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
         
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         hps, _ = self.hphc(f, **kwargs)
         
         return np.unwrap(np.angle(hps))
 
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         
         hps, _ = self.hphc(f, **kwargs)
         
-        return abs(hp)
+        return abs(hps)
     
     def hphc(self, f, **kwargs):
-                
+        """
+        Compute the plus and cross polarisations of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: Plus and cross polarisations of the GW for the chosen events evaluated on the frequency grid.
+        :rtype: tuple(array, array)
+        
+        """
         m1, m2 = utils.m1m2_from_Mceta(kwargs['Mc'], kwargs['eta'])
         
         if not self.is_Precessing:
@@ -452,6 +643,17 @@ class TEOBResumSPA_WF(WaveFormModel):
         return hps, hcs
     
     def tau_star(self, f, **kwargs):
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         # We use the expression in arXiv:0907.0700 eq. (3.8b)
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
@@ -467,7 +669,14 @@ class TEOBResumSPA_WF(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
         
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
@@ -475,14 +684,38 @@ class TEOBResumSPA_WF(WaveFormModel):
 ##############################################################################
 
 class TaylorF2_RestrictedPN(WaveFormModel):
-    '''
-    TaylorF2 restricted PN waveform model
-    This can include both the contribution of tidal effects at 5 and 6 PN and the contribution of eccentricity up to 3 PN
-    '''
+    """
+    TaylorF2 restricted PN waveform model, with coefficients up to 3.5 PN. The amplitude is thus the same as in Newtonian approximation, and the model is valid only in the *inspiral*.
     
-    # This waveform model is restricted PN (the amplitude stays as in Newtonian approximation) up to 3.5 PN
-    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, which_ISCO='Schw', use_QuadMonTid=False, **kwargs):
+    This model can include both the contribution of tidal effects at 5 and 6 PN and the contribution of eccentricity up to 3 PN.
+    
+    Relevant references:
+        [1] `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_
         
+        [2] `arXiv:1107.1267 <https://arxiv.org/abs/1107.1267>`_
+        
+        [3] `arXiv:1402.5156 <https://arxiv.org/abs/1402.5156>`_
+        
+        [4] `arXiv:1601.05588 <https://arxiv.org/abs/1601.05588>`_
+        
+        [5] `arXiv:1605.00304 <https://arxiv.org/abs/1605.00304>`_
+    
+    :param float fHigh: The cut frequency factor of the waveform, in :math:`\\rm Hz`. By default this is set to two times the *Innermost Stable Circular Orbit*, ISCO, frequency of a remnant Schwarzschild BH having a mass equal to the total mass of the binary, see :py:data:`gwfast.gwfastGlobals.f_isco`. Another useful value, whose coefficient is provided in :py:data:`gwfast.gwfastGlobals.f_qK`, is the limit of the quasi-Keplerian approximation, defined as in `arXiv:2108.05861 <https://arxiv.org/abs/2108.05861>`_ (see also `arXiv:1605.00304 <https://arxiv.org/abs/1605.00304>`_), which is more conservative than two times the Schwarzschild ISCO.
+    :param bool, optional is_tidal: Boolean specifying if the waveform has to include tidal effects.
+    :param bool, optional use_3p5PN_SpinHO: Boolean specifying if the waveform has to include the quadratic- and cubic-in-spin contributions at 3.5 PN, which are not included in ``LAL``.
+    :param bool, optional phiref_vlso: Boolean specifying if the reference frequency of the waveform has to be set to the *Last Stable Orbit*, LSO, frequency.
+    :param bool, optional is_eccentric: Boolean specifying if the waveform has to include orbital eccentricity.
+    :param float, optional fRef_ecc: The reference frequency for the provided eccentricity, :math:`f_{e_{0}}`.
+    :param str, optional which_ISCO: String specifying if the waveform has to be cut at two times the ISCO frequency of a remnant Schwarzschild (non-rotating) BH or of a Kerr BH, as in `arXiv:2108.05861 <https://arxiv.org/abs/2108.05861>`_ (see in particular App. C), with the fits from `arXiv:1605.01938 <https://arxiv.org/abs/1605.01938>`_. The Schwarzschild ISCO can be selected passing ``'Schw'``, while the Kerr ISCO passing ``'Kerr'``. NOTE: the Kerr option pushes the validity of the model to the limit, and is not the default option.
+    :param bool, optional use_QuadMonTid: Boolean specifying if the waveform has to include the spin-induced quadrupole due to tidal effects, with the fits from `arXiv:1608.02582 <https://arxiv.org/abs/1608.02582>`_.
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+    
+    """
+    
+    def __init__(self, fHigh=None, is_tidal=False, use_3p5PN_SpinHO=False, phiref_vlso=False, is_eccentric=False, fRef_ecc=None, which_ISCO='Schw', use_QuadMonTid=False, **kwargs):
+        """
+        Constructor method
+        """
         if fHigh is None:
             fHigh = 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3) #Hz
         if is_tidal:
@@ -497,6 +730,15 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         super().__init__(objectT, fHigh, is_tidal=is_tidal, is_eccentric=is_eccentric, **kwargs)
     
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         # From A. Buonanno, B. Iyer, E. Ochsner, Y. Pan, B.S. Sathyaprakash - arXiv:0907.0700 - eq. (3.18) plus spins as in arXiv:1107.1267 eq. (5.3) up to 2.5PN and PhysRevD.93.084054 eq. (6) for 3PN and 3.5PN
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
@@ -609,12 +851,31 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         return phase + phiR - np.pi*0.25
 
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         # In the restricted PN approach the amplitude is the same as for the Newtonian approximation, so this term is equivalent
         amplitude = np.sqrt(5./24.) * (np.pi**(-2./3.)) * glob.clightGpc/kwargs['dL'] * (glob.GMsun_over_c3*kwargs['Mc'])**(5./6.) * (f**(-7./6.))
         return amplitude
     
     def tau_star(self, f, **kwargs):
-        # We use the expression in arXiv:0907.0700 eq. (3.8b)
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta = kwargs['eta']
@@ -629,9 +890,20 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
-        # The cut frequency of the waveform. This can be approximated as 2f_ISCO for inspiral only waveforms. The flag which_ISCO controls the expression of the ISCO to use:
-        # - if Schw is passed the Schwarzschild ISCO for a non-rotating final BH is used (depending only on Mc and eta)
-        # - if Kerr is passed the Kerr ISCO for a rotating final BH is computed (depending on Mc, eta and the spins), as in arXiv:2108.05861 (see in particular App. C). NOTE: this is pushing the validity of TaylorF2 to the limit, and is not the default option.
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
+        
+        This can be approximated as 2 f_ISCO for inspiral only waveforms. The flag which_ISCO controls the expression of the ISCO to use:
+        
+            - if ``'Schw'`` is passed the Schwarzschild ISCO for a non-rotating final BH is used (depending only on ``'Mc'`` and ``'eta'``);
+            - if ``'Kerr'`` is passed the Kerr ISCO for a rotating final BH is computed (depending on ``'Mc'``, ``'eta'`` and the spins), as in `arXiv:2108.05861 <https://arxiv.org/abs/2108.05861>`_ (see in particular App. C). NOTE: this is pushing the validity of the model to the limit, and is not the default option.
+        
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
+        
         if self.which_ISCO=='Schw':
             
             return self.fcutPar/(kwargs['Mc']/(kwargs['eta']**(3./5.)))
@@ -674,11 +946,22 @@ class TaylorF2_RestrictedPN(WaveFormModel):
 ##############################################################################
 
 class IMRPhenomD(WaveFormModel):
-    '''
-    IMRPhenomD waveform model
-    '''
+    """
+    IMRPhenomD waveform model.
+    
+    Relevant references:
+        [1] `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_
+        
+        [2] `arXiv:1508.07253 <https://arxiv.org/abs/1508.07253>`_
+    
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+        
+    """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253
     def __init__(self, **kwargs):
+        """
+        Constructor method
+        """
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -693,6 +976,15 @@ class IMRPhenomD(WaveFormModel):
         self.QNMgrid_fdamp = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fdamp.txt'))
         
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         eta2 = eta*eta # These can speed up a bit, we call them multiple times
@@ -838,6 +1130,15 @@ class IMRPhenomD(WaveFormModel):
         return phis + np.where(fgrid < self.fcutPar, - t0*(fgrid - fRef) - phiRef, 0.)
         
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         # Useful quantities
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
@@ -928,8 +1229,16 @@ class IMRPhenomD(WaveFormModel):
         return Overallamp*amp0*(fgrid**(-7./6.))*amplitudeIMR
         
     def _finalspin(self, eta, chi1, chi2):
-        # Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142,
-        # which is taken from arXiv:1508.07250 eq. (3.6)
+        """
+        Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142, which is taken from `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.6).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: The spin of the final object.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -942,7 +1251,16 @@ class IMRPhenomD(WaveFormModel):
         return af1 + af2 + af3
         
     def _radiatednrg(self, eta, chi1, chi2):
-        # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
+        """
+        Compute the total radiated energy, as in `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.7) and (3.8).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: Total energy radiated by the system.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -954,7 +1272,17 @@ class IMRPhenomD(WaveFormModel):
         return (EradNS * (1. + (-0.0030302335878845507 - 2.0066110851351073 * eta + 7.7050567802399215 * eta*eta) * s)) / (1. + (-0.6714403054720589 - 1.4756929437702908 * eta + 7.304676214885011 * eta*eta) * s)
     
     def tau_star(self, f, **kwargs):
-        # For complex waveforms we use the expression in arXiv:0907.0700 eq. (3.8b)
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta = kwargs['eta']
@@ -969,7 +1297,14 @@ class IMRPhenomD(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
         
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
     
 ##############################################################################
@@ -977,11 +1312,24 @@ class IMRPhenomD(WaveFormModel):
 ##############################################################################
 
 class IMRPhenomD_NRTidalv2(WaveFormModel):
-    '''
-    IMRPhenomD_NRTidal waveform model
-    '''
+    """
+    IMRPhenomD_NRTidal waveform model.
+    
+    Relevant references:
+        [1] `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_
+        
+        [2] `arXiv:1508.07253 <https://arxiv.org/abs/1508.07253>`_
+        
+        [3] `arXiv:1905.06011 <https://arxiv.org/abs/1905.06011>`_
+    
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+        
+    """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1905.06011
     def __init__(self, **kwargs):
+        """
+        Constructor method
+        """
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -996,6 +1344,15 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         self.QNMgrid_fdamp = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_fdamp.txt'))
         
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         eta2 = eta*eta # These can speed up a bit, we call them multiple times
@@ -1179,6 +1536,15 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return phis + np.where(fgrid < self.fcutPar, - t0*(fgrid - fRef) - phiRef + tidal_phase + (SS_3p5PN + SSS_3p5PN)*TF2OverallAmpl*((np.pi*fgrid)**(2./3.)), 0.)
         
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         # Useful quantities
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
@@ -1323,8 +1689,16 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
     
         
     def _finalspin(self, eta, chi1, chi2):
-        # Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142,
-        # which is taken from arXiv:1508.07250 eq. (3.6)
+        """
+        Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142, which is taken from `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.6).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: The spin of the final object.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -1336,7 +1710,16 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return af1 + af2 + af3
         
     def _radiatednrg(self, eta, chi1, chi2):
-        # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
+        """
+        Compute the total radiated energy, as in `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.7) and (3.8).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: Total energy radiated by the system.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -1348,7 +1731,17 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return (EradNS * (1. + (-0.0030302335878845507 - 2.0066110851351073 * eta + 7.7050567802399215 * eta*eta) * s)) / (1. + (-0.6714403054720589 - 1.4756929437702908 * eta + 7.304676214885011 * eta*eta) * s)
     
     def tau_star(self, f, **kwargs):
-        # For complex waveforms we use the expression in arXiv:0907.0700 eq. (3.8b)
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta = kwargs['eta']
@@ -1363,7 +1756,16 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
-        # We cut the waveform slightly before the end of the Planck taper filter, for numerical stability
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
+        
+        We cut the waveform slightly before the end of the Planck taper filter, for numerical stability.
+                
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
@@ -1398,11 +1800,26 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
 ##############################################################################
 
 class IMRPhenomHM(WaveFormModel):
-    '''
-    IMRPhenomHM waveform model
-    '''
+    """
+    IMRPhenomHM waveform model.
+    
+    Relevant references:
+        [1] `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_
+        
+        [2] `arXiv:1508.07253 <https://arxiv.org/abs/1508.07253>`_
+        
+        [3] `arXiv:1708.00404 <https://arxiv.org/abs/1708.00404>`_
+        
+        [4] `arXiv:1909.10010 <https://arxiv.org/abs/1909.10010>`_
+    
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+        
+    """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1708.00404, arXiv:1909.10010
     def __init__(self, **kwargs):
+        """
+        Constructor method
+        """
         # Dimensionless frequency (Mf) at which the inspiral amplitude switches to the intermediate amplitude
         self.AMP_fJoin_INS = 0.014
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
@@ -1416,6 +1833,15 @@ class IMRPhenomHM(WaveFormModel):
         self.complShiftm = np.array([0., np.pi*0.5, 0., -np.pi*0.5, np.pi, np.pi*0.5, 0.])
         
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phases of the various modes for the chosen events evaluated on the frequency grid.
+        :rtype: dict(array, array, array, array, array, array)
+        
+        """
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         eta2 = eta*eta # These can speed up a bit, we call them multiple times
@@ -1609,6 +2035,15 @@ class IMRPhenomHM(WaveFormModel):
         
     
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitudes of the various modes for the chosen events evaluated on the frequency grid.
+        :rtype: dict(array, array, array, array, array, array)
+        
+        """
         # Useful quantities
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
@@ -1774,6 +2209,15 @@ class IMRPhenomHM(WaveFormModel):
         return ampllm
     
     def hphc(self, f, **kwargs):
+        """
+        Compute the plus and cross polarisations of the GW as a function of frequency, given the events parameters, avoiding for loops over the modes.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: Plus and cross polarisations of the GW for the chosen events evaluated on the frequency grid.
+        :rtype: tuple(array, array)
+        
+        """
         # This function retuns directly the full plus and cross polarisations, avoiding for loops over the modes
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
@@ -2122,8 +2566,16 @@ class IMRPhenomHM(WaveFormModel):
 
         
     def _finalspin(self, eta, chi1, chi2):
-        # Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142,
-        # which is taken from arXiv:1508.07250 eq. (3.6)
+        """
+        Compute the spin of the final object, as in LALSimIMRPhenomD_internals.c line 161 and 142, which is taken from `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.6).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: The spin of the final object.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -2135,7 +2587,16 @@ class IMRPhenomHM(WaveFormModel):
         return af1 + af2 + af3
         
     def _radiatednrg(self, eta, chi1, chi2):
-        # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
+        """
+        Compute the total radiated energy, as in `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.7) and (3.8).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: Total energy radiated by the system.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -2147,8 +2608,17 @@ class IMRPhenomHM(WaveFormModel):
         return (EradNS * (1. + (-0.0030302335878845507 - 2.0066110851351073 * eta + 7.7050567802399215 * eta*eta) * s)) / (1. + (-0.6714403054720589 - 1.4756929437702908 * eta + 7.304676214885011 * eta*eta) * s)
     
     def _RDfreqCalc(self, finalmass, finalspin, l, m):
-        # Compute the real and imag parts of the complex ringdown frequency for the (l,m) mode as in LALSimIMRPhenomHM.c line 189
-        # These are all fits of the different modes
+        """
+        Compute the real and imaginary parts of the complex ringdown frequency for the :math:`(l,m)` mode as in :py:class:`LALSimIMRPhenomHM.c` line 189. This function includes all fits of the different modes.
+        
+        :param array or float finalmass: Mass(es) of the final object(s).
+        :param array or float finalspin: Spin(s) of the final object(s).
+        :param int l: :math:`l` of the chosen mode.
+        :param int m: :math:`m` of the chosen mode.
+        :return: Real and imaginary parts of the complex ringdown frequency (ringdown and damping frequencies).
+        :rtype: tuple(array, array) or tuple(float, float)
+        
+        """
         
         # Domain mapping for dimnesionless BH spin
         alpha = np.log(2. - finalspin) / np.log(3.);
@@ -2189,7 +2659,17 @@ class IMRPhenomHM(WaveFormModel):
         return fring, fdamp
         
     def tau_star(self, f, **kwargs):
-        # For complex waveforms we use the expression in arXiv:0907.0700 eq. (3.8b)
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta  = kwargs['eta']
@@ -2204,7 +2684,14 @@ class IMRPhenomHM(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
         
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
 
 ##############################################################################
@@ -2212,21 +2699,39 @@ class IMRPhenomHM(WaveFormModel):
 ##############################################################################
 
 class IMRPhenomNSBH(WaveFormModel):
-    '''
-    IMRPhenomNSBH waveform model
-    The inputs labelled as 1 refer to the BH (e.g. chi1z) and with 2 to the NS (e.g. Lambda2)
     
+    """
+    IMRPhenomNSBH waveform model
+    
+    The inputs labelled as 1 refer to the BH (e.g. ``'chi1z'``) and with 2 to the NS (e.g. ``'Lambda2'``)
+    
+    Relevant references:
+        [1] `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_
+        
+        [2] `arXiv:1508.07253 <https://arxiv.org/abs/1508.07253>`_
+        
+        [3] `arXiv:1509.00512 <https://arxiv.org/abs/1509.00512>`_
+        
+        [4] `arXiv:1905.06011 <https://arxiv.org/abs/1905.06011>`_
+    
+    :param bool, optional verbose: Boolean specifying if the code has to print additional details during execution.
+    :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
+        
+    """
+    '''
     NOTE: In LAL, to compute the parameter xi_tide in arXiv:1509.00512 eq. (8), the roots are extracted.
-          In python this would break the possibility to vectorise so, to circumvent the issue, we compute
+          In Python this would break the possibility to vectorise so, to circumvent the issue, we compute
           a grid of xi_tide as a function of the compactness, mass ratio and BH spin, and then use a 3D
           interpolator. The first time the code runs, if this interpolator is not already present, it will be
           computed (the base resolution of the grid is 200 pts per parameter, that we find
           sufficient to reproduce LAL waveforms with good precision, given the smooth behaviour of the function,
-          but this can be raised if needed. In this case, it is necessary to change tha name of the file assigned to self.path_xiTide_tab and the res parameter passed to _make_xiTide_interpolator())
+          but this can be raised if needed. In this case, it is necessary to change the name of the file assigned to self.path_xiTide_tab and the res input passed to _make_xiTide_interpolator())
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1509.00512, arXiv:1905.06011
     def __init__(self, verbose=True, **kwargs):
-    
+        """
+        Constructor method
+        """
         # Dimensionless frequency (Mf) at which the inspiral phase switches to the intermediate phase
         self.PHI_fJoin_INS = 0.018
         # Dimensionless frequency (Mf) at which we define the end of the waveform
@@ -2242,6 +2747,15 @@ class IMRPhenomNSBH(WaveFormModel):
         self._make_xiTide_interpolator(res=200)
         
     def Phi(self, f, **kwargs):
+        """
+        Compute the phase of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the phase of, as in :py:data:`events`.
+        :return: GW phase for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
         eta2 = eta*eta # These can speed up a bit, we call them multiple times
@@ -2438,6 +2952,15 @@ class IMRPhenomNSBH(WaveFormModel):
         return phis + np.where(fgrid < self.fcutPar, - t0*(fgrid - fRef) - phiRef + np.pi +  tidal_phase, 0.)
         
     def Ampl(self, f, **kwargs):
+        """
+        Compute the amplitude of the GW as a function of frequency, given the events parameters.
+        
+        :param array f: Frequency grid on which the phase will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the amplitude of, as in :py:data:`events`.
+        :return: GW amplitude for the chosen events evaluated on the frequency grid.
+        :rtype: array
+        
+        """
         # Useful quantities
         M = kwargs['Mc']/(kwargs['eta']**(3./5.))
         eta = kwargs['eta']
@@ -2637,7 +3160,16 @@ class IMRPhenomNSBH(WaveFormModel):
         return Overallamp*amplitudeIMR
     
     def _radiatednrg(self, eta, chi1, chi2):
-        # Predict the total radiated energy, from arXiv:1508.07250 eq (3.7) and (3.8)
+        """
+        Compute the total radiated energy, as in `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_ eq. (3.7) and (3.8).
+        
+        :param array or float eta: Symmetric mass ratio of the objects.
+        :param array or float chi1: Spin of the primary object.
+        :param array or float chi2: Spin of the secondary object.
+        :return: Total energy radiated by the system.
+        :rtype: array or float
+        
+        """
         # This is needed to stabilize JAX derivatives
         Seta = np.sqrt(np.where(eta<0.25, 1.0 - 4.0*eta, 0.))
         m1 = 0.5 * (1.0 + Seta)
@@ -2649,7 +3181,17 @@ class IMRPhenomNSBH(WaveFormModel):
         return (EradNS * (1. + (-0.0030302335878845507 - 2.0066110851351073 * eta + 7.7050567802399215 * eta*eta) * s)) / (1. + (-0.6714403054720589 - 1.4756929437702908 * eta + 7.304676214885011 * eta*eta) * s)
     
     def tau_star(self, f, **kwargs):
-        # For complex waveforms we use the expression in arXiv:0907.0700 eq. (3.8b)
+        """
+        Compute the time to coalescence (in seconds) as a function of frequency (in :math:`\\rm Hz`), given the events parameters.
+        
+        We use the expression in `arXiv:0907.0700 <https://arxiv.org/abs/0907.0700>`_ eq. (3.8b).
+        
+        :param array f: Frequency grid on which the time to coalescence will be computed, in :math:`\\rm Hz`.
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the time to coalescence of, as in :py:data:`events`.
+        :return: time to coalescence for the chosen events evaluated on the frequency grid, in seconds.
+        :rtype: array
+        
+        """
         Mtot_sec = kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.))
         v = (np.pi*Mtot_sec*f)**(1./3.)
         eta = kwargs['eta']
@@ -2664,17 +3206,37 @@ class IMRPhenomNSBH(WaveFormModel):
         return OverallFac*(t05 + t6 + t7)
     
     def fcut(self, **kwargs):
+        """
+        Compute the cut frequency of the waveform as a function of the events parameters, in :math:`\\rm Hz`.
+        
+        :param dict(array, array, ...) kwargs: Dictionary with arrays containing the parameters of the events to compute the cut frequency of, as in :py:data:`events`.
+        :return: Cut frequency of the waveform for the chosen events, in :math:`\\rm Hz`.
+        :rtype: array
+        
+        """
         
         return self.fcutPar/(kwargs['Mc']*glob.GMsun_over_c3/(kwargs['eta']**(3./5.)))
     
     def _tabulate_xiTide(self, res=200, store=True, Compmin=.1, qmax=100.):
-        '''
-        The ranges are chosen to cover LAL's tuning range:
-            - Compactness in [0.1, 0.5] (LAL is tuned up to Lambda=5000, corresponding to C = 0.109);
-            - mass ratio, q, in [1, 100];
-            - chi_BH in [-1, 1].
-        They can easily be changed if needed
-        '''
+        """
+        Tabulate the the parameter :math:`\\xi_{\\rm tide}` in `arXiv:1509.00512 <https://arxiv.org/abs/1509.00512>`_ eq. (8) as a function of the NS compactness, the binary mass ratio and BH spin.
+        
+        The default ranges are chosen to cover ``LAL`` 's tuning range:
+        
+            - Compactness in :math:`[0.1,\, 0.5]` (``LAL`` is tuned up to :math:`\Lambda=5000`, corresponding to :math:`{\cal C}=0.109`), in *natural units*;
+            - mass ratio, :math:`q=m_1/m_2`, in :math:`[1,\, 100]`;
+            - chi_BH in :math:`[-1,\, 1]`.
+            
+        They can easily be changed if needed.
+        
+        :param int, optional res: Resolution of the grid in the three parameters.
+        :param bool, optional store: Boolean specifying if to store or not the computed grid.
+        :param float, optional Compmin: Minimum of the compactenss grid. The maximum is 0.5, corresponding to the compactness of a BH.
+        :param float, optional qmax: Maximum of the mass ratio :math:`q = m_1/m_2 \geq 1`. The minimum is set to 1.
+        :return: The :math:`\\xi_{\\rm tide}` tabulated grid, the used compacteness grid, mass ratio grid, and spin grid.
+        :rtype: tuple(array, array, array, array)
+        
+        """
         Compgrid = onp.linspace(Compmin, .5, res)
         qgrid = onp.linspace(1., qmax, res)
         chigrid = onp.linspace(-1.,1.,res)
@@ -2715,7 +3277,12 @@ class IMRPhenomNSBH(WaveFormModel):
         return xires, Compgrid, qgrid, chigrid
 
     def _make_xiTide_interpolator(self, res=200):
-
+        """
+        Load the table of the parameter :math:`\\xi_{\\rm tide}` if present or computes it if not, and builds the needed 3-D interpolator.
+        
+        :param int, optional res: Resolution of the grid in compactness, mass ratio and spin.
+        
+        """
         if self.path_xiTide_tab is not None:
             if os.path.exists(self.path_xiTide_tab):
                 if self.verbose:

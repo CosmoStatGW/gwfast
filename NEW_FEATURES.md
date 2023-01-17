@@ -4,7 +4,7 @@ We here list the features added after the publication of [arXiv:2207.06910](<htt
 Developed by [Francesco Iacovelli](<https://github.com/FrancescoIacovelli>) and [Michele Mancarella](<https://github.com/Mik3M4n>).
 
 ## Extension of TaylorF2 down to the Kerr ISCO of the remnant BH
-The ```TaylorF2_RestrictedPN``` waveform can be extended up to the Kerr ISCO of the remnant BH (rather than assuming it to be a Schwarzschild BH), computed as in [arXiv:2108.05861](<https://arxiv.org/pdf/2108.05861>) (see Appendix C in particular), with the fits from [arXiv:1605.01938](<https://arxiv.org/abs/1605.01938>). This can be done thanks to the ```which_ISCO``` flag as follows:
+The ```TaylorF2_RestrictedPN``` waveform can be extended up to the **Kerr ISCO** of the remnant BH (rather than assuming it to be a Schwarzschild BH), computed as in [arXiv:2108.05861](<https://arxiv.org/pdf/2108.05861>) (see Appendix C in particular), with the fits from [arXiv:1605.01938](<https://arxiv.org/abs/1605.01938>). This can be done thanks to the ```which_ISCO``` flag as follows:
 
 ```python
 mywf = waveforms.TaylorF2_RestrictedPN(which_ISCO='Kerr')						
@@ -28,7 +28,7 @@ with ```WF1``` and ```WF2``` being two waveform objects and ```Params1``` and ``
 
 ## Addition of the spin-induced quadrupole coefficient due to tidal effects to TaylorF2
 
-The ```TaylorF2_RestrictedPN``` waveform can include the spin-induced quadrupole coefficient as a function the dimensionless tidal deformability, computed as in Eq. (15) of [arXiv:1608.02582](<https://arxiv.org/abs/1608.02582>) with coeffs from third row of Table I. This can be done thanks to the ```use_QuadMonTid``` flag as follows:
+The ```TaylorF2_RestrictedPN``` waveform can include the **spin-induced quadrupole** coefficient as a function the dimensionless tidal deformability, computed as in Eq. (15) of [arXiv:1608.02582](<https://arxiv.org/abs/1608.02582>) with coeffs from third row of Table I. This can be done thanks to the ```use_QuadMonTid``` flag as follows:
 
 ```python
 mywf = waveforms.TaylorF2_RestrictedPN(is_tidal=True, use_QuadMonTid=True)						
@@ -38,7 +38,7 @@ Notice the ```is_tidal``` flag has to be set to ```True``` for this to work (the
 
 ## Implementation of a TEOBResumSPA waveform model wrapper
 
-We added a wrapper to use the ```TEOBResumSPA``` waveform model of the ```TEOBResumS``` family, available on Bitbucket [here](<https://bitbucket.org/eob_ihes/teobresums/wiki/Home>), see [arXiv:2104.07533](<https://arxiv.org/abs/2104.07533>), [arXiv:2012.00027](<https://arxiv.org/abs/2012.00027>), [arXiv:2001.09082](<https://arxiv.org/abs/2001.09082>), [arXiv:1904.09550](<https://arxiv.org/abs/1904.09550>), [arXiv:1806.01772](<https://arxiv.org/abs/1806.01772>), [arXiv:1506.08457](<https://arxiv.org/abs/1506.08457>), [arXiv:1406.6913](<https://arxiv.org/abs/1406.6913>). This is a frequency-domain waveform model which can be used both for BBH, BNS and NSBH binaries, including contribution of higher-order modes and tidal effects. It can  be used simply as
+We added a wrapper to use the ```TEOBResumSPA``` waveform model of the ```TEOBResumS``` family, available on Bitbucket [here](<https://bitbucket.org/eob_ihes/teobresums/wiki/Home>), see [arXiv:2104.07533](<https://arxiv.org/abs/2104.07533>), [arXiv:2012.00027](<https://arxiv.org/abs/2012.00027>), [arXiv:2001.09082](<https://arxiv.org/abs/2001.09082>), [arXiv:1904.09550](<https://arxiv.org/abs/1904.09550>), [arXiv:1806.01772](<https://arxiv.org/abs/1806.01772>), [arXiv:1506.08457](<https://arxiv.org/abs/1506.08457>), [arXiv:1406.6913](<https://arxiv.org/abs/1406.6913>). This is a frequency-domain waveform model which can be used both for BBH, BNS and NSBH binaries, including contribution of **higher-order modes** and **tidal effects**. It can  be used simply as
 
 ```python
 mywf = waveforms.TEOBResumSPA_WF()						
@@ -56,3 +56,28 @@ The implementation matches the one used in the examples available [here](<https:
 When using this waveform model, derivatives are computed using numerical differentiation (finite differences).
 
 To use this model in the ```calculate_forecasts_from_catalog.py``` script, set ```--wf_model='TEOBResumSPA'``` for the BBH version, or ```--wf_model='TEOBResumSPA_tidal'``` to include tidal effects.
+
+## Implementation of functions to compute the relative orientation and distance between detectors
+
+We added a function to compute the **relative orientation** of two detectors with respect to the **great circle** that joins them. This can be used as 
+
+```python
+angle = utils.ang_btw_dets_GC(det_1, det_2)						
+```
+
+with ```det_1``` and ```det_2``` being two dictionaries containing the latitude (```'lat'```), longitude (```'long'```) and orientation (```xax```) of the two detectors (in degrees), as the ones given in the ```detectors``` dictionary present in the ```gwfastGlobals.py``` module.
+
+To compute their **great circle distance** we added the function 
+
+```python
+dist_GC = utils.dist_btw_dets_GC(det_1, det_2)						
+```
+whose output is given in kilometers. 
+
+We further added a function to compute the *great circle chord length* between two detectors
+
+```python
+dist_GC = utils.dist_btw_dets_Chord(det_1, det_2)						
+```
+
+whose output is again given in kilometers.

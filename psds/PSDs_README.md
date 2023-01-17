@@ -1,7 +1,8 @@
-# GWFast/psds
+# gwfast/psds
 We here list the sources of the available Power Spectral Densities, PSDs, or Amplitude Spectral Densities, ASDs available in GWFast, in alphabetical order
 
 ### ce\_strain/
+
 Cosmic Explorer ASDs from [*Science-Driven Tunable Design of Cosmic Explorer Detectors*](https://arxiv.org/abs/2201.10668), available at [https://dcc.cosmicexplorer.org/cgi-bin/DocDB/ShowDocument?.submit=Identifier&docid=T2000017&version=](https://dcc.cosmicexplorer.org/cgi-bin/DocDB/ShowDocument?.submit=Identifier&docid=T2000017&version=).
 
 The folder contains ASDs for:
@@ -12,6 +13,7 @@ The folder contains ASDs for:
 * the 40 km detector tuned for low-freqency signals (```cosmic_explorer_40km_lf```)
 
 ### ET-0000A-18.txt
+
 Public [ET-D](https://arxiv.org/abs/1012.0908) sensnitivity curve. 
 
 Available at [https://apps.et-gw.eu/tds/?content=3&r=14065](https://apps.et-gw.eu/tds/?content=3&r=14065). Notice that we kept only the first and last column of the file, corresponding to the frequencies and the total ET-D sensitivity, obtained combining the LF and HF instruments.

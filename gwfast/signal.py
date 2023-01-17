@@ -34,13 +34,32 @@ from gwfast import gwfastGlobals as glob
 
 
 class GWSignal(object):
-    '''
+    """
     Class to compute the GW signal emitted by a coalescing binary system as seen by a detector on Earth.
     
-    The functions defined within this class allow to get the amplitude of the signal, its phase, SNR and Fisher matrix elements.
+    The functions defined within this class allow to get e.g. the amplitude of the signal, its phase, SNR and Fisher matrix elements.
     
+    :param WaveFormModel wf_model: Object containing the waveform model.
+    :param str psd_path: Full path to the file containing the detector's *Power Spectral Density*, PSD, or *Amplitude Spectral Density*, ASD, including the file extension. The file is assumed to have two columns, the first containing the frequencies (in :math:`\\rm Hz`) and the second containing the detector's PSD/ASD at each frequency.
+    :param str detector_shape: The shape of the detector, to be chosen among ``'L'`` for an L-shaped detector (90°-arms) and ``'T'`` for a triangular detector (3 nested detectors with 60°-arms).
+    :param float det_lat: Latitude of the detector, in degrees.
+    :param float det_long: Longitude of the detector, in degrees.
+    :param float det_xax: Angle between the bisector of the detector's arms (the first detector in the case of a triangle) and local East, in degrees.
+    :param bool, optional verbose: Boolean specifying if the code has to print additional details during execution.
+    :param bool, optional is_ASD: Boolean specifying if the provided file is a PSD or an ASD.
+    :param bool, optional useEarthMotion: Boolean specifying if the effect of the Earth rotation has to be included in the analysis.
+    :param bool, optional noMotion: Boolean specifying if the Earth should be considered fixed at ``tcoal=0``. In the case ``useEarthMotion=False`` the system is rotated depending on ``tcoal`` and then left fixed. This was needed for checks and is not to be used.
+    :param float fmin: Minimum frequency to use for the grid in the analysis, in :math:`\\rm Hz`.
+    :param float fmax: Maximum frequency to use for the grid in the analysis, in :math:`\\rm Hz`. The cut frequency of the waveform (which depends on the events parameters) will be used as maximum frequency if ``fmax=None`` or if it is smaller than ``fmax``.
+    :param str IntTablePath: Deprecated, not used.
+    :param float DutyFactor: Duty factor of the detector, between 0 and 1, representing the percentage of time the detector (each detector independently in the case of a triangular detector) is supposed to be operational.
+    :param bool, optional compute2arms: Boolean specifying if, in the case of a triangular detector, the computation can be performed only in two of the instruments, using the null-stream to get the signal in the third instrument, speeding up the computation by 1/3.
+    :param bool, optional jitCompileDerivs: Boolean specifying if the derivatives function has to be jit compiled.
+    
+    """
+    '''
     Inputs are an object containing the waveform model, the coordinates of the detector (latitude and longitude in deg),
-    its shape (L or T), the angle w.r.t. East of the bisector of the arms (deg) 
+    its shape (L or T), the angle with respect to East of the bisector of the arms (deg)
     and its ASD or PSD (given in a .txt file containing two columns: one with the frequencies and one with the ASD or PSD values,
     remember ASD=sqrt(PSD))
     
@@ -60,7 +79,9 @@ class GWSignal(object):
                 DutyFactor=None,
                 compute2arms=True,
                 jitCompileDerivs=False):
-        
+        """
+        Constructor method
+        """
         if (detector_shape!='L') and (detector_shape!='T'):
             raise ValueError('Enter valid detector configuration')
         
@@ -73,11 +94,11 @@ class GWSignal(object):
             else:
                 print('Using ASD from file %s ' %psd_path)
         
-        if (useEarthMotion) and (wf_model.objType == 'BBH'):
+        if (useEarthMotion) and (wf_model.objType == 'BBH') and (verbose):
             print('WARNING: the motion of Earth gives a negligible contribution for BBH signals, consider switching it off to make the code run faster')
-        if (not useEarthMotion) and (wf_model.objType == 'BNS'):
+        if (not useEarthMotion) and (wf_model.objType == 'BNS') and (verbose):
             print('WARNING: the motion of Earth gives a relevant contribution for BNS signals, consider switching it on')
-        if (not useEarthMotion) and (wf_model.objType == 'NSBH'):
+        if (not useEarthMotion) and (wf_model.objType == 'NSBH') and (verbose):
             print('WARNING: the motion of Earth gives a relevant contribution for NSBH signals, consider switching it on')
         
         self.wf_model = wf_model
@@ -138,6 +159,9 @@ class GWSignal(object):
         
         
     def _init_jax(self):
+        """
+        JAX initialisation method
+        """
         if self.verbose:
             print('Initializing jax...')
         os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
@@ -194,6 +218,12 @@ class GWSignal(object):
             self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
      
     def _update_seed(self, seed=None):
+        """
+        Update the seed for the duty cycle with a random value or a user input value.
+        
+        :param int, optional seed: User input value for the seed.
+        
+        """
         onp.random.seed(None)
         if seed is None:
             self.seedUse = onp.random.randint(2**32 - 1, size=1)
@@ -201,7 +231,12 @@ class GWSignal(object):
             self.seedUse = seed
         
     def _tabulateIntegrals(self, res=200, store=True, Mcmin=.9, Mcmax=9., etamin=.1):
+        """
+        Compute the table of integrals to use :py:class:`GWSignal.SNRFastInsp`.
         
+        .. deprecated:: 1.0.0
+            
+        """
         def IntegrandC(f, Mc, tcoal, n):
             t = tcoal - 2.18567 * ((1.21/Mc)**(5./3.)) * ((100/f[:,onp.newaxis])**(8./3.))/(3600.*24)
             return (f[:,onp.newaxis]**(-7./3.))*np.cos(n*2.*np.pi*t)
@@ -258,7 +293,12 @@ class GWSignal(object):
         return Igrid, Mcgrid, etagrid, tcgrid
     
     def _make_SNRig_interpolator(self, ):
+        """
+        Make interpolator of the table of integrals to use :py:class:`GWSignal.SNRFastInsp`.
         
+        .. deprecated:: 1.0.0
+            
+        """
         from scipy.interpolate import RegularGridInterpolator
         if self.IntTablePath is not None:
             if os.path.exists(self.IntTablePath):
@@ -299,9 +339,21 @@ class GWSignal(object):
         
     
     def _PatternFunction(self, theta, phi, t, psi, rot=0.):
+        """
+        Compute the value of the so-called pattern functions of the detector for a set of sky coordinates, GW polarisation(s) and time(s).
+        
+        For the definition of the pattern functions see `arXiv:gr-qc/9804014 <https://arxiv.org/abs/gr-qc/9804014>`_ eq. (10)--(13).
+        
+        :param array or float theta: The :math:`\\theta` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float phi: The :math:`\phi` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float t: The time(s) given as GMST.
+        :param array or float psi: The GW polarisation angle(s) :math:`\psi`, in :math:`\\rm rad`.
+        :param float rot: Further rotation of the interferometer with respect to the :py:data:`self.xax` orientation, in degrees, needed for the triangular geometry. In this case, the three arms will have orientations 1 --> :py:data:`self.xax`, 2 --> :py:data:`self.xax` + 60°, 3 --> :py:data:`self.xax` + 120°.
+        :return: Plus and cross pattern functions of the detector evaluated at the given parameters.
+        :rtype: tuple(array, array) or tuple(float, float)
+        
+        """
         # See P. Jaranowski, A. Krolak, B. F. Schutz, PRD 58, 063001, eq. (10)--(13)
-        # rot (deg) is an additional parameter, needed for the triangle configuration, allowing to specify a further rotation
-        # of the interferometer w.r.t. xax. In this case, the three arms will have orientations 1 -> xax, 2 -> xax+60°, 3 -> xax+120° 
         
     
         def afun(ra, dec, t, rot):
@@ -345,7 +397,18 @@ class GWSignal(object):
         
         return phiP
     
-    def _DeltLoc(self, theta, phi, t, f):
+    def _DeltLoc(self, theta, phi, t):
+        """
+        Compute the time needed to go from Earth center to detector location for a set of sky coordinates and time(s). The result is given in seconds.
+        
+        :param array or float theta: The :math:`\\theta` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float phi: The :math:`\phi` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float t: The time(s) given as GMST.
+        
+        :return: Time shift(s) to go from Earth center to detector location.
+        :rtype: array or float
+        
+        """
         # Time needed to go from Earth center to detector location
         
         ras, decs = self._ra_dec_from_th_phi(theta, phi)
@@ -359,27 +422,35 @@ class GWSignal(object):
         return Delt # in seconds
     
     def GWAmplitudes(self, evParams, f, rot=0.):
+        """
+        Compute the amplitude of the signal(s) as seen by the detector, as a function of the parameters, at given frequencies.
+        
+        :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
+        :param array or float f: The frequency(ies) at which to perform the calculation, in :math:`\\rm Hz`.
+        :param float rot: Further rotation of the interferometer with respect to the :py:data:`self.xax` orientation, in degrees, needed for the triangular geometry.
+        :return: Plus and cross amplitudes at the detector, evaluated at the given parameters and frequency(ies).
+        :rtype: tuple(array, array) or tuple(float, float)
+        
+        """
         # evParams are all the parameters characterizing the event(s) under exam. It has to be a dictionary containing the entries: 
         # Mc -> chirp mass (Msun), dL -> luminosity distance (Gpc), theta & phi -> sky position (rad), iota -> inclination angle of orbital angular momentum to l.o.s toward the detector,
         # psi -> polarisation angle, tcoal -> time of coalescence as GMST (fraction of days), eta -> symmetric mass ratio, Phicoal -> GW frequency at coalescence.
         # chi1z, chi2z -> dimensionless spin components aligned to orbital angular momentum [-1;1], Lambda1,2 -> tidal parameters of the objects,
         # f is the frequency (Hz)
         
-        #self._check_evparams(evParams)
-        
         theta, phi, iota, psi, tcoal = evParams['theta'], evParams['phi'], evParams['iota'], evParams['psi'], evParams['tcoal']
         
 
         if self.noMotion:
             t = 0.
-            t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+            t = t + self._DeltLoc(theta, phi, t)/(3600.*24.)
         else:
             if self.useEarthMotion:
                 t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24)
-                t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+                t = t + self._DeltLoc(theta, phi, t)/(3600.*24.)
             else:
                 t = tcoal #- self.wf_model.tau_star(self.fmin, **evParams)/(3600.*24)
-                t = t + self._DeltLoc(theta, phi, t, f)/(3600.*24.)
+                t = t + self._DeltLoc(theta, phi, t)/(3600.*24.)
         # wfAmpl = self.wf_model.Ampl(f, **evParams)
         Fp, Fc = self._PatternFunction(theta, phi, t, psi, rot=rot)
         
@@ -395,6 +466,16 @@ class GWSignal(object):
         return Ap, Ac
     
     def GWPhase(self, evParams, f):
+        """
+        Compute the complete phase of the signal(s), as a function of the parameters, at given frequencies.
+        
+        :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
+        :param array or float f: The frequency(ies) at which to perform the calculation, in :math:`\\rm Hz`.
+        
+        :return: Complete signal phase, evaluated at the given parameters and frequency(ies).
+        :rtype: array or float
+        
+        """
         # Phase of the GW signal
         tcoal, Phicoal =  evParams['tcoal'], evParams['Phicoal']
         PhiGw = self.wf_model.Phi(f, **evParams)
@@ -402,7 +483,37 @@ class GWSignal(object):
         return 2.*np.pi*f*(tcoal*3600.*24.) - Phicoal - PhiGw
 
     def GWstrain(self, f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., is_m1m2=False, is_chi1chi2=False, is_prec_ang=False, return_single_comp=None):
-
+        """
+        Compute the full GW strain (complex) as a function of the parameters, at given frequencies.
+        
+        :param array or float f: The frequency(ies) at which to perform the calculation, in :math:`\\rm Hz`.
+        :param array or float Mc: The chirp mass(es), :math:`{\cal M}_c`, in units of :math:`\\rm M_{\odot}`. If ``is_m1m2=True`` this is interpreted as the primary mass, :math:`m_1`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float eta:  The symmetric mass ratio(s), :math:`\eta`. If ``is_m1m2=True`` this is interpreted as the secondary mass, :math:`m_2`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float dL: The luminosity distance(s), :math:`d_L`, in :math:`\\rm Gpc`.
+        :param array or float theta: The :math:`\\theta` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float phi: The :math:`\phi` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float iota: The inclination angle(s), with respect to orbital angular momentum, :math:`\iota`, in :math:`\\rm rad`. If ``is_prec_ang=True`` this is interpreted as the inclination angle(s) with respect to total angular momentum, :math:`\\theta_{JN}`, in :math:`\\rm rad`.
+        :param array or float psi: The polarisation angle(s), :math:`\psi`, in :math:`\\rm rad`.
+        :param array or float tcoal: The time(s) of coalescence, :math:`t_{\\rm coal}`, as a GMST.
+        :param array or float Phicoal: The phase(s) at coalescence, :math:`\Phi_{\\rm coal}`, in :math:`\\rm rad`.
+        :param array or float chiS: The symmetric spin component(s), :math:`\chi_s`. If :py:class:`self.wf_model` is precessing or ``is_chi1chi2=True`` this is interpreted as the spin component(s) of the primary object(s) along the axis :math:`z`, :math:`\chi_{1,z}`. If ``is_prec_ang=True`` this is interpreted as the spin magnitude(s) of the primary object(s), :math:`\chi_1`.
+        :param array or float chiA: The antisymmetric spin component(s) :math:`\chi_a`. If :py:class:`self.wf_model` is precessing or ``is_chi1chi2=True`` this is interpreted as the spin component(s) of the secondary object(s) along the axis :math:`z`, :math:`\chi_{2,z}`. If ``is_prec_ang=True`` this is interpreted as the spin magnitude(s) of the secondary object(s), :math:`\chi_2`.
+        :param array or float chi1x: The spin component(s) of the primary object(s) along the axis :math:`x`, :math:`\chi_{1,x}`. If ``is_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the primary object(s), :math:`\\theta_{s,1}`, in :math:`\\rm rad`.
+        :param array or float chi2x: The spin component(s) of the secondary object(s) along the axis :math:`x`, :math:`\chi_{2,x}`. If ``is_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the secondary object(s), :math:`\\theta_{s,2}`, in :math:`\\rm rad`.
+        :param array or float chi1y: spin component(s) of the primary object(s) along the axis :math:`y`, :math:`\chi_{1,y}`. If ``is_prec_ang=True`` this is interpreted as the azimuthal angle(s) of orbital angular momentum relative to total angular momentum, :math:`\phi_{JL}`, in :math:`\\rm rad`.
+        :param array or float chi2y: spin component(s) of the secondary object(s) along the axis :math:`y`, :math:`\chi_{2,y}`. If ``is_prec_ang=True`` this is interpreted as the difference(s) in azimuthal angle between spin vectors, :math:`\phi_{1,2}`, in :math:`\\rm rad`.
+        :param array or float LambdaTilde: The adimensional tidal deformability(ies) of combination :math:`\\tilde{\Lambda}`.
+        :param array or float deltaLambda: The adimensional tidal deformability(ies) of combination :math:`\delta\\tilde{\Lambda}`.
+        :param array or float ecc: The orbital eccentricity(ies), :math:`e_0`.
+        :param float rot: Further rotation of the interferometer with respect to the :py:data:`self.xax` orientation, in degrees, needed for the triangular geometry.
+        :param bool, optional is_m1m2: Boolean specifying if the ``Mc`` and ``eta`` inputs should be interpreted as the primary and secondary mass(es).
+        :param bool, optional is_chi1chi2: Boolean specifying if the ``chiS`` and ``chiA`` inputs should be interpreted as the primary and secondary spin components along the axis :math:`z`.
+        :param bool, optional is_prec_ang: Boolean specifying if the ``iota`` input should be interpreted as the inclination angle with respect to total angular momentum, ``chiS`` and ``chiA`` as the primary and secondary spin magnitudes, ``chi1x`` and ``chi2x`` as the primary and secondary spin tilts, ``chi1y`` as the azimuthal angle of orbital angular momentum relative to total angular momentum and ``chi2y`` as the difference in azimuthal angle between spin vectors.
+        :param str return_single_comp: String specifying if a single component of the signal should be returned, to be chosen among ``Ap`` and ``Ac``, to return the plus and cross amplitude, :math:`A_+` and :math:`A_{\\times}`, respectively, and ``Psip`` and ``Psic``, to return the plus and cross phase, :math:`\Phi_+` and :math:`\Phi_{\\times}`, respectively.
+        :return: Complete signal strain (complex), evaluated at the given parameters and frequency(ies).
+        :rtype: array or float
+        
+        """
         # Full GW strain expression (complex)
         # Here we have the decompressed parameters and we put them back in a dictionary just to have an easier
         # implementation of the JAX module for derivatives
@@ -449,7 +560,7 @@ class GWSignal(object):
         if self.useEarthMotion:
             # Compute Doppler contribution
             t = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
-            tmpDeltLoc = self._DeltLoc(theta, phi, t, f) # in seconds
+            tmpDeltLoc = self._DeltLoc(theta, phi, t) # in seconds
             t = t + tmpDeltLoc/(3600.*24.)
             phiD = Mc*0.
             #phiP is necessary if we write the signal as A*exp(i Psi) with A = sqrt(Ap^2 + Ac^2), uncomment if needed
@@ -461,7 +572,7 @@ class GWSignal(object):
                 t = 0.
             else:
                 t = tcoal
-            tmpDeltLoc = self._DeltLoc(theta, phi, t, f) # in seconds
+            tmpDeltLoc = self._DeltLoc(theta, phi, t) # in seconds
             t = t + tmpDeltLoc/(3600.*24.)
         
         phiL = (2.*np.pi*f)*tmpDeltLoc
@@ -529,6 +640,17 @@ class GWSignal(object):
         
     
     def SNRInteg(self, evParams, res=1000, return_all=False):
+        """
+        Compute the *signal-to-noise-ratio*, SNR, as a function of the parameters of the event(s).
+        
+        :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
+        :param int res: The resolution of the frequency grid to use.
+        :param bool, optional return_all: Boolean specifying if, in the case of a triangular detector, the SNRs of the individual instruments have to be returned separately. In this case the return type is *list(array, array, array)*.
+        
+        :return: SNR(s) as a function of the parameters of the event(s). The shape is :math:`(N_{\\rm events})`.
+        :rtype: 1-D array
+        
+        """
         # SNR calculation performing the frequency integral for each signal
         # This is computationally more expensive, but needed for complex waveform models
         if self.DutyFactor is not None:
@@ -548,7 +670,8 @@ class GWSignal(object):
                 _ =evParams['chi1x']
             except KeyError:
                 try:
-                    print('Adding cartesian components of the spins from angular variables')
+                    if self.verbose:
+                        print('Adding cartesian components of the spins from angular variables')
                     evParams['iota'], evParams['chi1x'], evParams['chi1y'], evParams['chi1z'], evParams['chi2x'], evParams['chi2y'], evParams['chi2z'] = utils.TransformPrecessing_angles2comp(thetaJN=evParams['thetaJN'], phiJL=evParams['phiJL'], theta1=evParams['tilt1'], theta2=evParams['tilt2'], phi12=evParams['phi12'], chi1=evParams['chi1'], chi2=evParams['chi2'], Mc=evParams['Mc'], eta=evParams['eta'], fRef=self.fmin, phiRef=0.)
                 except KeyError:
                     raise ValueError('Either the cartesian components of the precessing spins (iota, chi1x, chi1y, chi1z, chi2x, chi2y, chi2z) or their modulus and orientations (thetaJN, chi1, chi2, tilt1, tilt2, phiJL, phi12) have to be provided.')
@@ -557,7 +680,8 @@ class GWSignal(object):
                 _ =evParams['chi1z']
             except KeyError:
                 try:
-                    print('Adding chi1z, chi2z from chiS, chiA')
+                    if self.verbose:
+                        print('Adding chi1z, chi2z from chiS, chiA')
                     evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
                     evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
                 except KeyError:
@@ -644,6 +768,24 @@ class GWSignal(object):
                    computeDerivFinDiff=False, computeAnalyticalDeriv=True,
                    return_all=False,
                    **kwargs):
+        """
+        Compute the *Fisher information matrix*, FIM, as a function of the parameters of the event(s).
+        
+        :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
+        :param int res: The resolution of the frequency grid to use.
+        :param float df: The spacing of the frequency grid to use, in :math:`\\rm Hz`. Alternative to ``res``.
+        :param str spacing: The kind of spacing of the frequency grid to use. If ``'geom'`` the grid will be spaced evenly on a log scale (geometric progression), if ``'lin'`` it will be spaced evenly on a linear scale.
+        :param bool, optional use_m1m2: Boolean specifying if the FIM has to be computed with respect to the individual masses ``m1`` and ``m2`` rather than ``Mc`` and ``eta``.
+        :param bool, optional use_chi1chi2: Boolean specifying if, in the non-precessing case, the FIM has to be computed with respect to the individual spins ``chi1z`` and ``chi2z`` rather than ``chiS`` and ``chiA``.
+        :param bool, optional use_prec_ang: Boolean specifying if, in the precessing case, the FIM has to be computed with respect to the spin angular variables rather than the spin cartesian components.
+        :param bool, optional computeDerivFinDiff: Boolean specifying if the derivatives have to be computed using numerical differentiation (finite differences) through the `numdifftools <https://github.com/pbrod/numdifftools>`_ package.
+        :param bool, optional computeAnalyticalDeriv: Boolean specifying if the derivatives with respect to ``dL``, ``theta``, ``phi``, ``psi``, ``tcoal``, ``Phicoal`` and ``iota`` (the latter only for the fundamental mode in the non-precessing case) have to be computed analytically. This considerably speeds up the calculation and provides better accuracy.
+        :param bool, optional return_all: Boolean specifying if, in the case of a triangular detector, the FIMs of the individual instruments have to be returned separately. In this case the return type is *list(array, array, array)*.
+        :param kwargs: Optional arguments to be passed to :py:class:`gwfast.signal.GWSignal._SignalDerivatives`, such as ``methodNDT``.
+        :return: FIM(s) as a function of the parameters of the event(s). The shape is :math:`(N_{\\rm parameters}`, :math:`N_{\\rm parameters}`, :math:`N_{\\rm events})`.
+        :rtype: 3-D array
+        
+        """
         # If use_m1m2=True the Fisher is computed w.r.t. m1 and m2, not Mc and eta
         # If use_chi1chi2=True the Fisher is computed w.r.t. chi1z and chi2z, not chiS and chiA
         if self.DutyFactor is not None:
@@ -666,7 +808,8 @@ class GWSignal(object):
                 _ =evParams['chi1z']
             except KeyError:
                 try:
-                    print('Adding chi1z, chi2z from chiS, chiA')
+                    if self.verbose:
+                        print('Adding chi1z, chi2z from chiS, chiA')
                     evParams['chi1z'] = evParams['chiS'] + evParams['chiA']
                     evParams['chi2z'] = evParams['chiS'] - evParams['chiA']
                 except KeyError:
@@ -687,7 +830,8 @@ class GWSignal(object):
                _=evParams['chi1x']
             except KeyError:
                 try:
-                    print('Adding cartesian components of the spins from angular variables')
+                    if self.verbose:
+                        print('Adding cartesian components of the spins from angular variables')
                     evParams['iota'], evParams['chi1x'], evParams['chi1y'], evParams['chi1z'], evParams['chi2x'], evParams['chi2y'], evParams['chi2z'] = utils.TransformPrecessing_angles2comp(thetaJN=evParams['thetaJN'], phiJL=evParams['phiJL'], theta1=evParams['tilt1'], theta2=evParams['tilt2'], phi12=evParams['phi12'], chi1=evParams['chi1'], chi2=evParams['chi2'], Mc=evParams['Mc'], eta=evParams['eta'], fRef=self.fmin, phiRef=0.)
                 except KeyError:
                     raise ValueError('Either the cartesian components of the precessing spins (iota, chi1x, chi1y, chi1z, chi2x, chi2y, chi2z) or their modulus and orientations (thetaJN, chi1, chi2, tilt1, tilt2, phiJL, phi12) have to be provided.')
@@ -743,7 +887,8 @@ class GWSignal(object):
         
         if (self.wf_model.is_LAL) and (not computeDerivFinDiff):
             computeDerivFinDiff=True
-            print('Using LAL or TEOBResumS waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
+            if self.verbose:
+                print('Using LAL or TEOBResumS waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
             
         allFishers=[]
         
@@ -874,11 +1019,47 @@ class GWSignal(object):
     
     
     def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
+        """
+        Compute the derivatives of the GW strain with respect to the parameters of the event(s) at given frequencies (in :math:`\\rm Hz`).
+        
+        :param array or float fgrids: The frequency(ies) at which to perform the calculation, in :math:`\\rm Hz`.
+        :param array or float Mc: The chirp mass(es), :math:`{\cal M}_c`, in units of :math:`\\rm M_{\odot}`. If ``use_m1m2=True`` this is interpreted as the primary mass, :math:`m_1`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float eta:  The symmetric mass ratio(s), :math:`\eta`. If ``use_m1m2=True`` this is interpreted as the secondary mass, :math:`m_2`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float dL: The luminosity distance(s), :math:`d_L`, in :math:`\\rm Gpc`.
+        :param array or float theta: The :math:`\\theta` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float phi: The :math:`\phi` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float iota: The inclination angle(s), with respect to orbital angular momentum, :math:`\iota`, in :math:`\\rm rad`. If ``is_prec_ang=True`` this is interpreted as the inclination angle(s) with respect to total angular momentum, :math:`\\theta_{JN}`, in :math:`\\rm rad`.
+        :param array or float psi: The polarisation angle(s), :math:`\psi`, in :math:`\\rm rad`.
+        :param array or float tcoal: The time(s) of coalescence, :math:`t_{\\rm coal}`, as a GMST.
+        :param array or float Phicoal: The phase(s) at coalescence, :math:`\Phi_{\\rm coal}`, in :math:`\\rm rad`.
+        :param array or float chiS: The symmetric spin component(s), :math:`\chi_s`. If :py:class:`self.wf_model` is precessing or ``use_chi1chi2=True`` this is interpreted as the spin component(s) of the primary object(s) along the axis :math:`z`, :math:`\chi_{1,z}`. If ``use_prec_ang=True`` this is interpreted as the spin magnitude(s) of the primary object(s), :math:`\chi_1`.
+        :param array or float chiA: The antisymmetric spin component(s) :math:`\chi_a`. If :py:class:`self.wf_model` is precessing or ``use_chi1chi2=True`` this is interpreted as the spin component(s) of the secondary object(s) along the axis :math:`z`, :math:`\chi_{2,z}`. If ``use_prec_ang=True`` this is interpreted as the spin magnitude(s) of the secondary object(s), :math:`\chi_2`.
+        :param array or float chi1x: The spin component(s) of the primary object(s) along the axis :math:`x`, :math:`\chi_{1,x}`. If ``use_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the primary object(s), :math:`\\theta_{s,1}`, in :math:`\\rm rad`.
+        :param array or float chi2x: The spin component(s) of the secondary object(s) along the axis :math:`x`, :math:`\chi_{2,x}`. If ``use_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the secondary object(s), :math:`\\theta_{s,2}`, in :math:`\\rm rad`.
+        :param array or float chi1y: spin component(s) of the primary object(s) along the axis :math:`y`, :math:`\chi_{1,y}`. If ``use_prec_ang=True`` this is interpreted as the azimuthal angle(s) of orbital angular momentum relative to total angular momentum, :math:`\phi_{JL}`, in :math:`\\rm rad`.
+        :param array or float chi2y: spin component(s) of the secondary object(s) along the axis :math:`y`, :math:`\chi_{2,y}`. If ``use_prec_ang=True`` this is interpreted as the difference(s) in azimuthal angle between spin vectors, :math:`\phi_{1,2}`, in :math:`\\rm rad`.
+        :param array or float LambdaTilde: The adimensional tidal deformability(ies) of combination :math:`\\tilde{\Lambda}`.
+        :param array or float deltaLambda: The adimensional tidal deformability(ies) of combination :math:`\delta\\tilde{\Lambda}`.
+        :param array or float ecc: The orbital eccentricity(ies), :math:`e_0`.
+        :param float rot: Further rotation of the interferometer with respect to the :py:data:`self.xax` orientation, in degrees, needed for the triangular geometry.
+        :param bool, optional use_m1m2: Boolean specifying if the ``Mc`` and ``eta`` inputs should be interpreted as the primary and secondary mass(es). In this case the derivatives are then taken with respect to ``m1`` and ``m2``.
+        :param bool, optional use_chi1chi2: Boolean specifying if the ``chiS`` and ``chiA`` inputs should be interpreted as the primary and secondary spin components along the axis :math:`z`. In this case the derivatives are then taken with respect to ``chi1z`` and ``chi2z``.
+        :param bool, optional use_prec_ang: Boolean specifying if the ``iota`` input should be interpreted as the inclination angle with respect to total angular momentum, ``chiS`` and ``chiA`` as the primary and secondary spin magnitudes, ``chi1x`` and ``chi2x`` as the primary and secondary spin tilts, ``chi1y`` as the azimuthal angle of orbital angular momentum relative to total angular momentum and ``chi2y`` as the difference in azimuthal angle between spin vectors. In this case the derivatives are then taken with respect to ``thetaJN``, ``chi1``, ``chi2``, ``tilt1``, ``tilt2``, ``phiJL`` and ``phi12``.
+        :param bool, optional computeDerivFinDiff: Boolean specifying if the derivatives have to be computed using numerical differentiation (finite differences) through the `numdifftools <https://github.com/pbrod/numdifftools>`_ package.
+        :param bool, optional computeAnalyticalDeriv: Boolean specifying if the derivatives with respect to ``dL``, ``theta``, ``phi``, ``psi``, ``tcoal``, ``Phicoal`` and ``iota`` (the latter only for the fundamental mode in the non-precessing case) have to be computed analytically. This considerably speeds up the calculation and provides better accuracy.
+        :param stepNDT: The step size to use in the computation with numerical differentiation (finite differences).
+        :type stepNDT: *float or* :py:class:`numdifftools.step_generators`
+        :param str methodNDT: The method to use in the computation with numerical differentiation (finite differences). This can be ``'central'``, ``'complex'``, ``'multicomplex'``, ``'forward'`` or ``'backward'``.
+        :return: Complete signal strain (complex), evaluated at the given parameters and frequency(ies).
+        :rtype: array
+        
+        """
+        # `numdifftools.step_generators <https://numdifftools.readthedocs.io/en/latest/reference/numdifftools.html#module-numdifftools.step_generators>`_
         if self.verbose:
             print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM or precessing spins.
         
-        if self.wf_model.is_newtonian:
+        if (self.wf_model.is_newtonian) and (self.verbose):
             print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
             
             if computeAnalyticalDeriv:
@@ -1026,7 +1207,37 @@ class GWSignal(object):
         return FisherDerivs
         
     def _AnalyticalDerivatives(self, f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False):
-        # Module to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal, Phicoal and also iota in absence of HM. Each derivative is inserted into its own function with representative name, for ease of check.
+        """
+        Compute analytical derivatives with respect to ``dL``, ``theta``, ``phi``, ``psi``, ``tcoal``, ``Phicoal`` and ``iota`` (the latter only for the fundamental mode in the non-precessing case).
+        
+        :param array or float f: The frequency(ies) at which to perform the calculation, in :math:`\\rm Hz`.
+        :param array or float Mc: The chirp mass(es), :math:`{\cal M}_c`, in units of :math:`\\rm M_{\odot}`. If ``use_m1m2=True`` this is interpreted as the primary mass, :math:`m_1`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float eta:  The symmetric mass ratio(s), :math:`\eta`. If ``use_m1m2=True`` this is interpreted as the secondary mass, :math:`m_2`, in units of :math:`\\rm M_{\odot}`.
+        :param array or float dL: The luminosity distance(s), :math:`d_L`, in :math:`\\rm Gpc`.
+        :param array or float theta: The :math:`\\theta` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float phi: The :math:`\phi` sky position angle(s), in :math:`\\rm rad`.
+        :param array or float iota: The inclination angle(s), with respect to orbital angular momentum, :math:`\iota`, in :math:`\\rm rad`. If ``is_prec_ang=True`` this is interpreted as the inclination angle(s) with respect to total angular momentum, :math:`\\theta_{JN}`, in :math:`\\rm rad`.
+        :param array or float psi: The polarisation angle(s), :math:`\psi`, in :math:`\\rm rad`.
+        :param array or float tcoal: The time(s) of coalescence, :math:`t_{\\rm coal}`, as a GMST.
+        :param array or float Phicoal: The phase(s) at coalescence, :math:`\Phi_{\\rm coal}`, in :math:`\\rm rad`.
+        :param array or float chiS: The symmetric spin component(s), :math:`\chi_s`. If :py:class:`self.wf_model` is precessing or ``use_chi1chi2=True`` this is interpreted as the spin component(s) of the primary object(s) along the axis :math:`z`, :math:`\chi_{1,z}`. If ``use_prec_ang=True`` this is interpreted as the spin magnitude(s) of the primary object(s), :math:`\chi_1`.
+        :param array or float chiA: The antisymmetric spin component(s) :math:`\chi_a`. If :py:class:`self.wf_model` is precessing or ``use_chi1chi2=True`` this is interpreted as the spin component(s) of the secondary object(s) along the axis :math:`z`, :math:`\chi_{2,z}`. If ``use_prec_ang=True`` this is interpreted as the spin magnitude(s) of the secondary object(s), :math:`\chi_2`.
+        :param array or float chi1x: The spin component(s) of the primary object(s) along the axis :math:`x`, :math:`\chi_{1,x}`. If ``use_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the primary object(s), :math:`\\theta_{s,1}`, in :math:`\\rm rad`.
+        :param array or float chi2x: The spin component(s) of the secondary object(s) along the axis :math:`x`, :math:`\chi_{2,x}`. If ``use_prec_ang=True`` this is interpreted as the spin tilt angle(s) of the secondary object(s), :math:`\\theta_{s,2}`, in :math:`\\rm rad`.
+        :param array or float chi1y: spin component(s) of the primary object(s) along the axis :math:`y`, :math:`\chi_{1,y}`. If ``use_prec_ang=True`` this is interpreted as the azimuthal angle(s) of orbital angular momentum relative to total angular momentum, :math:`\phi_{JL}`, in :math:`\\rm rad`.
+        :param array or float chi2y: spin component(s) of the secondary object(s) along the axis :math:`y`, :math:`\chi_{2,y}`. If ``use_prec_ang=True`` this is interpreted as the difference(s) in azimuthal angle between spin vectors, :math:`\phi_{1,2}`, in :math:`\\rm rad`.
+        :param array or float LambdaTilde: The adimensional tidal deformability(ies) of combination :math:`\\tilde{\Lambda}`.
+        :param array or float deltaLambda: The adimensional tidal deformability(ies) of combination :math:`\delta\\tilde{\Lambda}`.
+        :param array or float ecc: The orbital eccentricity(ies), :math:`e_0`.
+        :param float rot: Further rotation of the interferometer with respect to the :py:data:`self.xax` orientation, in degrees, needed for the triangular geometry.
+        :param bool, optional use_m1m2: Boolean specifying if the ``Mc`` and ``eta`` inputs should be interpreted as the primary and secondary mass(es).
+        :param bool, optional use_chi1chi2: Boolean specifying if the ``chiS`` and ``chiA`` inputs should be interpreted as the primary and secondary spin components along the axis :math:`z`.
+        :param bool, optional use_prec_ang: Boolean specifying if the ``iota`` input should be interpreted as the inclination angle with respect to total angular momentum, ``chiS`` and ``chiA`` as the primary and secondary spin magnitudes, ``chi1x`` and ``chi2x`` as the primary and secondary spin tilts, ``chi1y`` as the azimuthal angle of orbital angular momentum relative to total angular momentum and ``chi2y`` as the difference in azimuthal angle between spin vectors.
+        :return: Analytical derivatives with respect to ``dL``, ``theta``, ``phi``, ``iota``, ``psi``, ``tcoal`` and ``Phicoal``. If the :py:class:`self.wf_model` is precessing or includes higher order modes the derivative with respect to ``iota`` will be ``None``
+        :rtype: tuple(array, array, array, array, array, array, array)
+        
+        """
+        # Module to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal, Phicoal and also iota in absence of HM or precessing spins. Each derivative is inserted into its own function with representative name, for ease of check.
         if use_m1m2:
             # Interpret Mc as m1 and eta as m2
             McUse, etaUse = utils.Mceta_from_m1m2(Mc, eta)
@@ -1077,7 +1288,7 @@ class GWSignal(object):
         if self.useEarthMotion:
             # Compute Doppler contribution
             tnoloc = tcoal - self.wf_model.tau_star(f, **evParams)/(3600.*24.)
-            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc, f) # in seconds
+            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc) # in seconds
             t = tnoloc + tmpDeltLoc/(3600.*24.)
             phiD = Mc*0.
             #phiP is necessary if we write the signal as A*exp(i Psi) with A = sqrt(Ap^2 + Ac^2), uncomment if necessary
@@ -1089,7 +1300,7 @@ class GWSignal(object):
                 tnoloc=0
             else:
                 tnoloc = tcoal
-            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc, f) # in seconds
+            tmpDeltLoc = self._DeltLoc(theta, phi, tnoloc) # in seconds
             t = tnoloc + tmpDeltLoc/(3600.*24.)
         
         phiL = (2.*np.pi*f)*tmpDeltLoc
@@ -1279,7 +1490,19 @@ class GWSignal(object):
         return dL_deriv, theta_deriv, phi_deriv, iota_deriv, psi_deriv, tc_deriv, Phicoal_deriv
     
     def optimal_location(self, tcoal, is_tGPS=False):
-        # Function to compute the optimal theta and phi for a signal to be seen by the detector network at a given GMST. The boolean is_tGPS can be used to specify whether the provided time is a GPS time rather than a GMST, so that it will be converted.
+        """
+        Compute the optimal sky position for a signal to be seen by the detector at a given time.
+        
+        The computation assumes :math:`\psi = 0`.
+        
+        :param float tcoal: The time at which to compute the optimal location, as GMST in days.
+        :param bool, optional is_tGPS: Boolean specifying if the provided time is a GPS time (in seconds) rather than a GMST.
+    
+        :return: Optimal :math:`\\theta` and :math:`\phi` sky coordinates, in :math:`\\rm rad`.
+        :rtype: array(float, float)
+        
+        """
+        # Function to compute the optimal theta and phi for a signal to be seen by the detector at a given GMST. The boolean is_tGPS can be used to specify whether the provided time is a GPS time rather than a GMST, so that it will be converted.
         # For a triangle the best location is the same of an L in the same place, as can be shown by explicit geometrical computation.
         # Even if considering Earth rotation, the highest SNR will still be obtained if the source is in the optimal location close to the merger.
         from scipy.optimize import minimize
@@ -1297,6 +1520,12 @@ class GWSignal(object):
         return minimize(pattern_fixedtpsi, [1.,1.], bounds=((0.,onp.pi), (0.,2.*onp.pi))).x
     
     def SNRFastInsp(self, evParams, checkInterp=False):
+        """
+        Compute the inspiral SNR taking into account Earth rotation, without the need of performing an integral for each event
+        
+        .. deprecated:: 1.0.0
+            Use the standard function :py:class:`GWSignal.SNRInteg`.
+       """
         # This module allows to compute the inspiral SNR taking into account Earth rotation, without the need 
         # of performing an integral for each event
         
@@ -1434,7 +1663,21 @@ class GWSignal(object):
         return SNR
             
     def WFOverlap(self, WF1, WF2, evParams1, evParams2, res=1000, return_separate=False, **kwargs):
-
+        """
+        Compute the *overlap* of two waveforms in a single detector on two sets of parameters, for one or multiple events.
+        
+        :param WaveFormModel WF1: Object containing the first waveform model to analyse.
+        :param WaveFormModel WF2: Object containing the second waveform model to analyse.
+        :param dict(array, array, ...) evParams1: Dictionary containing the parameters of the event(s) for the first waveform model, as in :py:data:`events`.
+        :param dict(array, array, ...) evParams2: Dictionary containing the parameters of the event(s) for the second waveform model, as in :py:data:`events`.
+        :param int res: The resolution of the frequency grid to use.
+        :param bool, optional return_all: Boolean specifying if, instead of returning the overlap, the function has to return separately product at the numerator of the definition, :math:`(h_1|h_2)`, and the SNRs at the denominator. This is needed to compute the overlap for a detector network. In this case the return type is *tuple(array, array, array)*.
+        :param unused kwargs: Optional arguments.
+        
+        :return: Overlap(s) of the two waveforms. The shape is :math:`(N_{\\rm events})`.
+        :rtype: 1-D array
+        
+        """
         utils.check_evparams(evParams1)
         utils.check_evparams(evParams2)
         
