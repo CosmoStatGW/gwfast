@@ -1090,9 +1090,21 @@ class GWSignal(object):
         nParams = self.wf_model.nParams
         
         if not computeDerivFinDiff:
-            GWstrainUse = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang)
+            if self.wf_model.is_holomorphic:
+                GWstrainUse = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc: self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang)
+                
+                FisherDerivs = np.asarray(vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc))
+            else:
+                # In the non holomorphic case, to improve the accuracy, we compute separately the derivatives of the real and imaginary part of the strain as real functions
+                fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc = np.real(fgrids), np.real(Mc), np.real(eta), np.real(dL), np.real(theta), np.real(phi), np.real(iota), np.real(psi), np.real(tcoal), np.real(Phicoal), np.real(chiS), np.real(chiA), np.real(chi1x), np.real(chi2x), np.real(chi1y), np.real(chi2y), np.real(LambdaTilde), np.real(deltaLambda), np.real(ecc)
+                
+                GWstrainUse_real = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc: np.real(self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang))
+                GWstrainUse_imag = lambda f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc: np.imag(self.GWstrain(f, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=rot, is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang))
+                
+                realDerivs = np.asarray(vmap(jacrev(GWstrainUse_real, argnums=derivargs))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc))
+                imagDerivs = np.asarray(vmap(jacrev(GWstrainUse_imag, argnums=derivargs))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc))
             
-            FisherDerivs = np.asarray(vmap(jacrev(GWstrainUse, argnums=derivargs, holomorphic=True))(fgrids.T, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc))
+                FisherDerivs = realDerivs + 1j*imagDerivs
         else:
             if self.wf_model.is_newtonian:
                 if computeAnalyticalDeriv:

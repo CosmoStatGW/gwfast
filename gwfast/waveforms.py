@@ -57,10 +57,11 @@ class WaveFormModel(ABC):
     :param bool, optional is_LAL: Boolean specifying if the waveform comes from the ``LAL`` library.
     :param bool, optional is_prec_ang: Boolean specifying if, in the precessing spin case, the angular variables of the spins are used, namely ``'thetaJN'``, ``'chi1'``, ``'chi2'``, ``'tilt1'``, ``'tilt2'``, ``'phiJL'``, ``'phi12'``.
     :param bool, optional is_eccentric: Boolean specifying if the waveform includes orbital eccentricity.
+    :param bool, optional is_holomorphic: Boolean specifying if the waveform function is holomorphic (needed for derivatives handling).
     
     """
     
-    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=True, is_Precessing=False, is_LAL=False, is_prec_ang=False, is_eccentric=False):
+    def __init__(self, objType, fcutPar, is_newtonian=False, is_tidal=False, is_HigherModes=False, is_chi1chi2=True, is_Precessing=False, is_LAL=False, is_prec_ang=False, is_eccentric=False, is_holomorphic=False):
         """
         Constructor method
         """
@@ -84,6 +85,7 @@ class WaveFormModel(ABC):
         self.is_Precessing = is_Precessing
         self.is_LAL = is_LAL
         self.is_eccentric=is_eccentric
+        self.is_holomorphic=is_holomorphic
         
         if is_newtonian:
             # In the Newtonian case eta and the spins are not included in the Fisher, since they do not enter the signal
@@ -211,7 +213,7 @@ class NewtInspiral(WaveFormModel):
         """
         # Cut from M. Maggiore - Gravitational Waves Vol. 2 eq. (14.106)
         # From T. Dietrich et al. Phys. Rev. D 99, 024029, 2019, below eq. (4) (also look at Fig. 1) it seems be that, for BNS in the non-tidal case, the cut frequency should be lowered to (0.04/(2.*np.pi*glob.GMsun_over_c3))/Mtot.
-        super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3), is_newtonian=True, **kwargs)
+        super().__init__('BBH', 1./(6.*np.pi*np.sqrt(6.)*glob.GMsun_over_c3), is_newtonian=True, is_holomorphic=True, **kwargs)
     
     def Phi(self, f, **kwargs):
         """
@@ -730,7 +732,7 @@ class TaylorF2_RestrictedPN(WaveFormModel):
         self.fRef_ecc=fRef_ecc
         self.which_ISCO=which_ISCO
         self.use_QuadMonTid = use_QuadMonTid
-        super().__init__(objectT, fHigh, is_tidal=is_tidal, is_eccentric=is_eccentric, **kwargs)
+        super().__init__(objectT, fHigh, is_tidal=is_tidal, is_eccentric=is_eccentric, is_holomorphic=True, **kwargs)
     
     def Phi(self, f, **kwargs):
         """
