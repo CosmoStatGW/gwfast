@@ -791,7 +791,7 @@ def chi1chi2_to_chieffDeltachi_fish(or_matrix, ParNums, evParams):
     
     rotMatrix[onp.ix_([ParNums['chi1z'],ParNums['chi2z']],[ParNums['chi1z'],ParNums['chi2z']])] = J_chi1chi2_chieffDeltachi(*m1m2_from_Mceta(evParams['Mc'], evParams['eta']))
     
-    matrix = rotMatrix@or_matrix@rotMatrix
+    matrix = rotMatrix.T@or_matrix@rotMatrix
     
     return matrix
 

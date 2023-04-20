@@ -46,8 +46,11 @@ Additional references
 
 Here we list some other papers that made use of ``gwfast``
 
-  - M. Kole, F. Iacovelli, M. Mancarella, N. Produit, (2022). *Adding Gamma-ray Polarimetry to the Multi-Messenger Era*. To appear in *Astronomy & Astrophysics*. `arXiv:2211.12403 <https://arxiv.org/abs/2211.12403>`_.
-
+  - M. Kole, F. Iacovelli, M. Mancarella, N. Produit, (2022). *Adding Gamma-ray Polarimetry to the Multi-Messenger Era*. `A&A 669, A77 (2023) <https://doi.org/10.1051/0004-6361/202245205>`_. `arXiv:2211.12403 <https://arxiv.org/abs/2211.12403>`_.
+  - M. Branchesi, M. Maggiore *et al.*, (2023). *Science with the Einstein Telescope: a comparison of different designs*. `arXiv:2303.15923 <https://arxiv.org/abs/2303.15923>`_.
+  - M. Mancarella, F. Iacovelli, D. Gerosa, (2023). *Inferring, not just detecting: metrics for high-redshift sources observed with third-generation gravitational-wave detectors*. `arXiv:2303.16323 <https://arxiv.org/abs/2303.16323>`_.
+  - G. Franciolini, F. Iacovelli, M. Mancarella *et al.*, (2023). *Searching for Primordial Black Holes with the Einstein Telescope: impact of design and systematics*. `arXiv:2304.03160 <https://arxiv.org/abs/2304.03160>`_.
+  
 Acknowledgments
 ===============
 

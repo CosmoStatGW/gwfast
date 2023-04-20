@@ -8,7 +8,6 @@ In order to build the documentation, the following packages have to be installed
 * [```sphinx_rtd_theme```](<https://sphinx-rtd-theme.readthedocs.io/en/stable/>)
 * [```nbsphinx```](<https://nbsphinx.readthedocs.io/en/0.8.11/>)
 * [```myst-parser```](<https://myst-parser.readthedocs.io/en/latest/>)
-* [```sphinx-argparse```](<https://sphinx-argparse.readthedocs.io/en/stable/install.html>)
 * [```sphinx-copybutton```](<https://sphinx-copybutton.readthedocs.io/en/latest/?badge=latest>)
 * [```readthedocs-sphinx-search```](<https://readthedocs-sphinx-search.readthedocs.io/en/latest/>)
 * [```docutils```](<https://docutils.sourceforge.io>)

@@ -228,7 +228,7 @@ The script will produce the following files in the output folder (in alphabetica
 .. note::
   The ``npy`` files can be loaded using the :py:class:`numpy.load` function.
 
-Also, if **--\ --return_all** = 1, the following files will be produced:
+Also, if **--\ --return_all=** ``1``, the following files will be produced:
 
   - ``all_fishers_idxs.hdf5`` : File containing a dictionary with the FIMs of the detected events (i.e. having SNR > **--\ --snr_th**), both for the full network and for the single detectors. The order of the parameters is the one given in :py:class:`gwfast.waveforms.WaveFormModel.ParNums` (with the exception of the parameters that have been fixed through **--\ --params_fix**);
   - ``all_snrs_idxs.hdf5`` : File containing a dictionary with the SNRs of all the events in the original catalog, both for the full network and for the single detectors.

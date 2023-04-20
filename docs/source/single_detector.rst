@@ -92,7 +92,7 @@ We assume that the time-domain signal in a GW detector can be written as the sup
 .. math:: s(t) = h_0(t) + n(t)
   :label: signal_def
 
-The statistical properties of the noise are encoded in the one-sided Power Spectral Density, PSD, defined by
+The statistical properties of the noise are encoded in the one-sided Power Spectral Density (PSD) :math:`S_n(f)`, defined by
 
 .. math:: \langle \tilde{n}^*(f) \tilde{n}(f') \rangle = \dfrac{1}{2}\delta(f−f') S_n(f)
 

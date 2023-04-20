@@ -1,4 +1,4 @@
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.18914.svg)](http://dx.doi.org/10.5281/zenodo.7060236) [![Documentation Status](https://readthedocs.org/projects/gwfast/badge/?version=latest)](https://gwfast.readthedocs.io/en/latest/?badge=latest) <a href="https://ascl.net/2212.001"><img src="https://img.shields.io/badge/ascl-2212.001-blue.svg?colorB=262255" alt="ascl:2212.001" /></a>
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.18914.svg)](http://dx.doi.org/10.5281/zenodo.7060236) [![Documentation Status](https://readthedocs.org/projects/gwfast/badge/?version=latest)](https://gwfast.readthedocs.io/en/latest/?badge=latest) <a href="https://ascl.net/2212.001"><img src="https://img.shields.io/badge/ascl-2212.001-blue.svg?colorB=262255" alt="ascl:2212.001" /></a>[![INSPIRE](https://img.shields.io/badge/INSPIRE-Iacovelli:2022bbs-001529.svg)](https://inspirehep.net/literature/2106524) [![INSPIRE](https://img.shields.io/badge/INSPIRE-Iacovelli:2022mbg-001529.svg)](https://inspirehep.net/literature/2112457)
 
 ![alt text](<https://github.com/CosmoStatGW/gwfast/blob/master/gwfast_logo_bkgd.png>)
 
@@ -52,7 +52,7 @@ gwfast/docs/
 
 ## Documentation
 
-gwfast has its documentation hosted on Read the Docs [here](<https://github.com/CosmoStatGW/WF4Py>), and it can also be built from the ```docs``` directory.
+gwfast has its documentation hosted on Read the Docs [here](<https://gwfast.readthedocs.io/en/latest/>), and it can also be built from the ```docs``` directory.
 
 ## Installation
 To install the package without cloning the git repository, and a CPU-only version of JAX 

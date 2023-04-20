@@ -256,6 +256,7 @@ class LAL_WF(WaveFormModel):
     :param bool, optional is_Precessing: Boolean specifying if the waveform includes spin-precession effects.
     :param bool, optional is_eccentric: Boolean specifying if the waveform includes orbital eccentricity.
     :param float, optional fRef_ecc: The reference frequency for the provided eccentricity, :math:`f_{e_{0}}`.
+    :param float, optional fRef: Reference frequency of the waveform, in :math:`\\rm Hz`. If not provided, the minimum of the frequency grid will be used.
     :param bool, optional compute_sequence: Boolean to specify which ``LAL`` function to use among :py:class:`SimInspiralChooseFDWaveformSequence` (``True``) and :py:class:`SimInspiralChooseFDWaveform` (``False``).
     :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
     
@@ -273,7 +274,7 @@ class LAL_WF(WaveFormModel):
     
     '''
     
-    def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False, is_eccentric=False, compute_sequence=True, fRef_ecc=None, **kwargs):
+    def __init__(self, approximant, fcutPar=0.3, is_tidal=False, is_HigherModes=False, is_Precessing=False, is_eccentric=False, compute_sequence=True, fRef_ecc=None, fRef=None, **kwargs):
         """
         Constructor method
         """
@@ -299,6 +300,7 @@ class LAL_WF(WaveFormModel):
         if not self.compute_sequence:
             self.delta_f_base = 1./32.
         self.fRef_ecc = fRef_ecc
+        self.fRef = fRef
         super().__init__(objectT, fcutPar, is_tidal=is_tidal, is_HigherModes=is_HigherModes, is_Precessing=is_Precessing, is_eccentric=is_eccentric, is_LAL=True, **kwargs)
     
     def Phi(self, f, **kwargs):
@@ -381,12 +383,13 @@ class LAL_WF(WaveFormModel):
                 # Here we perform the computation directly on the input grid, which has to be initialized in a LAL readable array
                 LAL_frequency_array = lal.CreateREAL8Vector(len(fgrid))
                 LAL_frequency_array.data = fgrid
+                fRef = 0. if (self.fRef is None) else self.fRef # in Hz
                 # Call LAL
                 hp, hc = lalsim.SimInspiralChooseFDWaveformSequence(0., # We add the phase in signal.py
                                                                     m1*glob.uMsun, m2*glob.uMsun,
                                                                     chi1x, chi1y, chi1z,
                                                                     chi2x, chi2y, chi2z,
-                                                                    0., # reference frequency, set to 0 for convenience, internally it will be chosen as the minimum frequency of the grid
+                                                                    fRef, # reference frequency, if set to 0 internally it will be chosen as the minimum frequency of the grid
                                                                     dL*glob.uGpc,
                                                                     iota, # inclination
                                                                     lal_pars,
@@ -402,14 +405,14 @@ class LAL_WF(WaveFormModel):
                     delta_f = float(self.delta_f_base)
                 else:
                     delta_f = float((fmax-fmin)/(4.*len(fgrid)))
-                
+                fRef = fmin if (self.fRef is None) else self.fRef
                 hp, hc = lalsim.SimInspiralChooseFDWaveform(m1=m1*glob.uMsun, m2=m2*glob.uMsun,
                                                             S1x = chi1x, S1y = chi1y, S1z = chi1z,
                                                             S2x = chi2x, S2y = chi2y, S2z = chi2z,
                                                             distance = dL*glob.uGpc, inclination = iota,
                                                             phiRef = 0., longAscNodes=0., eccentricity=ecc,
                                                             meanPerAno = 0., deltaF=delta_f, f_min=fmin-delta_f,
-                                                            f_max=fmax, f_ref=fmin, LALpars=lal_pars,
+                                                            f_max=fmax, f_ref=fRef, LALpars=lal_pars,
                                                             approximant=self.approx)
                 
                 # In this case the waveform is computed on a grid produced by LAL,
@@ -437,7 +440,7 @@ class LAL_WF(WaveFormModel):
         #resLAL = np.array(list(map(LALfun, np.real(f.T), np.real(np.array([m1, m2, chi1x, chi2x, chi1y, chi2y, kwargs['chi1z'], kwargs['chi2z'], kwargs['dL'], kwargs['iota'], lambda1, lambda2, ecc]).T))))
         #hps, hcs = resLAL[:,0,:].T, resLAL[:,1,:].T
                 
-        return hps, hcs
+        return hps, -hcs
     
     def tau_star(self, f, **kwargs):
         """
@@ -589,7 +592,7 @@ class TEOBResumSPA_WF(WaveFormModel):
         else:
             iota = m1*0.
                 
-        def TEOBResumSeval(fgrid, m1, m2, chi1x, chi2x, chi1y, chi2y, chi1z, chi2z, dL, iota, lambda1, lambda2):
+        def TEOBResumSeval(fgrid, m1, m2, chi1x, chi2x, chi1y, chi2y, chi1z, chi2z, dL, iota, lambda1, lambda2, modes_use=self.k):
 
             parsDict = {'M'                  : m1+m2,          # System parametes
                         'q'                  : m1/m2,
@@ -614,8 +617,8 @@ class TEOBResumSPA_WF(WaveFormModel):
                         'interp_freqs'       : "yes",
                         'freqs'              : fgrid.tolist(),
                         # Modes
-                        'use_mode_lm'        : self.k,         # List of modes to use/output
-                        'output_lm'          : self.k,
+                        'use_mode_lm'        : modes_use,         # List of modes to use/output
+                        'output_lm'          : modes_use,
                         # Spins
                         'use_spins'          : self.use_spins,
                         'project_spins'      : "yes",
@@ -954,11 +957,12 @@ class IMRPhenomD(WaveFormModel):
         
         [2] `arXiv:1508.07253 <https://arxiv.org/abs/1508.07253>`_
     
+    :param float, optional fRef: Reference frequency of the waveform, in :math:`\\rm Hz`. If not provided, the minimum of the frequency grid will be used.
     :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
         
     """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253
-    def __init__(self, **kwargs):
+    def __init__(self, fRef=None, **kwargs):
         """
         Constructor method
         """
@@ -968,7 +972,9 @@ class IMRPhenomD(WaveFormModel):
         self.PHI_fJoin_INS = 0.018
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
-         
+        
+        self.fRef = fRef
+        
         super().__init__('BBH', fcutPar, **kwargs)
         
         self.QNMgrid_a     = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
@@ -1123,6 +1129,9 @@ class IMRPhenomD(WaveFormModel):
         
         # LAL sets fRef as the minimum frequency, do the same
         fRef   = np.amin(fgrid, axis=0)
+        if self.fRef is not None:
+            fRef = M*glob.GMsun_over_c3*self.fRef
+            
         phiRef = np.where(fRef < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fRef**(2./3.)) + PhiInspcoeffs['third']*(fRef**(1./3.)) + PhiInspcoeffs['third_log']*(fRef**(1./3.))*np.log(np.pi*fRef)/3. + PhiInspcoeffs['log']*np.log(np.pi*fRef)/3. + PhiInspcoeffs['min_third']*(fRef**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fRef**(-2./3.)) + PhiInspcoeffs['min_one']/fRef + PhiInspcoeffs['min_four_thirds']*(fRef**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fRef**(-5./3.)) + (PhiInspcoeffs['one']*fRef + PhiInspcoeffs['four_thirds']*(fRef**(4./3.)) + PhiInspcoeffs['five_thirds']*(fRef**(5./3.)) + PhiInspcoeffs['two']*fRef*fRef)/eta, np.where(fRef<fMRDJoin, (beta1*fRef - beta3/(3.*fRef*fRef*fRef) + beta2*np.log(fRef))/eta + C1Int + C2Int*fRef, np.where(fRef < self.fcutPar, (-(alpha2/fRef) + (4.0/3.0) * (alpha3 * (fRef**(3./4.))) + alpha1 * fRef + alpha4 * np.arctan((fRef - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fRef,0.)))
 
         phis = np.where(fgrid < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fgrid**(2./3.)) + PhiInspcoeffs['third']*(fgrid**(1./3.)) + PhiInspcoeffs['third_log']*(fgrid**(1./3.))*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['log']*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['min_third']*(fgrid**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fgrid**(-2./3.)) + PhiInspcoeffs['min_one']/fgrid + PhiInspcoeffs['min_four_thirds']*(fgrid**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fgrid**(-5./3.)) + (PhiInspcoeffs['one']*fgrid + PhiInspcoeffs['four_thirds']*(fgrid**(4./3.)) + PhiInspcoeffs['five_thirds']*(fgrid**(5./3.)) + PhiInspcoeffs['two']*fgrid*fgrid)/eta, np.where(fgrid<fMRDJoin, (beta1*fgrid - beta3/(3.*fgrid*fgrid*fgrid) + beta2*np.log(fgrid))/eta + C1Int + C2Int*fgrid, np.where(fgrid < self.fcutPar, (-(alpha2/fgrid) + (4.0/3.0) * (alpha3 * (fgrid**(3./4.))) + alpha1 * fgrid + alpha4 * np.arctan((fgrid - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fgrid,0.)))
@@ -1313,7 +1322,7 @@ class IMRPhenomD(WaveFormModel):
 
 class IMRPhenomD_NRTidalv2(WaveFormModel):
     """
-    IMRPhenomD_NRTidal waveform model.
+    IMRPhenomD_NRTidalv2 waveform model.
     
     Relevant references:
         [1] `arXiv:1508.07250 <https://arxiv.org/abs/1508.07250>`_
@@ -1322,11 +1331,12 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         
         [3] `arXiv:1905.06011 <https://arxiv.org/abs/1905.06011>`_
     
+    :param float, optional fRef: Reference frequency of the waveform, in :math:`\\rm Hz`. If not provided, the minimum of the frequency grid will be used.
     :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
         
     """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1905.06011
-    def __init__(self, **kwargs):
+    def __init__(self, fRef=None, **kwargs):
         """
         Constructor method
         """
@@ -1336,7 +1346,9 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         self.PHI_fJoin_INS = 0.018
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
-         
+        
+        self.fRef = fRef
+        
         super().__init__('BNS', fcutPar, is_tidal=True, **kwargs)
         
         self.QNMgrid_a     = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
@@ -1499,6 +1511,9 @@ class IMRPhenomD_NRTidalv2(WaveFormModel):
         
         # LAL sets fRef as the minimum frequency, do the same
         fRef   = np.amin(fgrid, axis=0)
+        if self.fRef is not None:
+            fRef = M*glob.GMsun_over_c3*self.fRef
+            
         phiRef = np.where(fRef < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fRef**(2./3.)) + PhiInspcoeffs['third']*(fRef**(1./3.)) + PhiInspcoeffs['third_log']*(fRef**(1./3.))*np.log(np.pi*fRef)/3. + PhiInspcoeffs['log']*np.log(np.pi*fRef)/3. + PhiInspcoeffs['min_third']*(fRef**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fRef**(-2./3.)) + PhiInspcoeffs['min_one']/fRef + PhiInspcoeffs['min_four_thirds']*(fRef**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fRef**(-5./3.)) + (PhiInspcoeffs['one']*fRef + PhiInspcoeffs['four_thirds']*(fRef**(4./3.)) + PhiInspcoeffs['five_thirds']*(fRef**(5./3.)) + PhiInspcoeffs['two']*fRef*fRef)/eta, np.where(fRef<fMRDJoin, (beta1*fRef - beta3/(3.*fRef*fRef*fRef) + beta2*np.log(fRef))/eta + C1Int + C2Int*fRef, np.where(fRef < self.fcutPar, (-(alpha2/fRef) + (4.0/3.0) * (alpha3 * (fRef**(3./4.))) + alpha1 * fRef + alpha4 * np.arctan((fRef - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fRef,0.)))
         
         phis = np.where(fgrid < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fgrid**(2./3.)) + PhiInspcoeffs['third']*(fgrid**(1./3.)) + PhiInspcoeffs['third_log']*(fgrid**(1./3.))*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['log']*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['min_third']*(fgrid**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fgrid**(-2./3.)) + PhiInspcoeffs['min_one']/fgrid + PhiInspcoeffs['min_four_thirds']*(fgrid**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fgrid**(-5./3.)) + (PhiInspcoeffs['one']*fgrid + PhiInspcoeffs['four_thirds']*(fgrid**(4./3.)) + PhiInspcoeffs['five_thirds']*(fgrid**(5./3.)) + PhiInspcoeffs['two']*fgrid*fgrid)/eta, np.where(fgrid<fMRDJoin, (beta1*fgrid - beta3/(3.*fgrid*fgrid*fgrid) + beta2*np.log(fgrid))/eta + C1Int + C2Int*fgrid, np.where(fgrid < self.fcutPar, (-(alpha2/fgrid) + (4.0/3.0) * (alpha3 * (fgrid**(3./4.))) + alpha1 * fgrid + alpha4 * np.arctan((fgrid - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fgrid,0.)))
@@ -1812,11 +1827,12 @@ class IMRPhenomHM(WaveFormModel):
         
         [4] `arXiv:1909.10010 <https://arxiv.org/abs/1909.10010>`_
     
+    :param float, optional fRef: Reference frequency of the waveform, in :math:`\\rm Hz`. If not provided, the minimum of the frequency grid will be used.
     :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
         
     """
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1708.00404, arXiv:1909.10010
-    def __init__(self, **kwargs):
+    def __init__(self, fRef=None, **kwargs):
         """
         Constructor method
         """
@@ -1826,7 +1842,9 @@ class IMRPhenomHM(WaveFormModel):
         self.PHI_fJoin_INS = 0.018
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
-         
+        
+        self.fRef = fRef
+        
         super().__init__('BBH', fcutPar, is_HigherModes=True, **kwargs)
         
         # List of phase shifts: the index is the azimuthal number m
@@ -1868,6 +1886,8 @@ class IMRPhenomHM(WaveFormModel):
         fgrid = M*glob.GMsun_over_c3*f
         # This is MfRef, needed to recover LAL, which sets fRef to f_min if fRef=0
         fRef  = np.amin(fgrid, axis=0)
+        if self.fRef is not None:
+            fRef = M*glob.GMsun_over_c3*self.fRef
         # As in arXiv:1508.07253 eq. (4) and LALSimIMRPhenomD_internals.c line 97
         chiPN = (chi_s * (1.0 - eta * 76.0 / 113.0) + Seta * chi_a)
         xi = - 1.0 + chiPN
@@ -2245,6 +2265,8 @@ class IMRPhenomHM(WaveFormModel):
         fgrid = M*glob.GMsun_over_c3*f
         # This is MfRef, needed to recover LAL, which sets fRef to f_min if fRef=0
         fRef  = np.amin(fgrid, axis=0)
+        if self.fRef is not None:
+            fRef = M*glob.GMsun_over_c3*self.fRef
         # As in arXiv:1508.07253 eq. (4) and LALSimIMRPhenomD_internals.c line 97
         chiPN = (chi_s * (1.0 - eta * 76.0 / 113.0) + Seta * chi_a)
         xi = - 1.0 + chiPN
@@ -2560,7 +2582,7 @@ class IMRPhenomHM(WaveFormModel):
         Y, Ymstar = Y.T, np.conj(Ymstar).T
         
         hp = np.sum(AmplsAllModes*np.exp(-1j*PhisAllModes)*(0.5*(Y + ((-1)**ells)*Ymstar)), axis=-1)
-        hc = np.sum(AmplsAllModes*np.exp(-1j*PhisAllModes)*(-1j* 0.5 * (Y - ((-1)**ells)* Ymstar)), axis=-1)
+        hc = -np.sum(AmplsAllModes*np.exp(-1j*PhisAllModes)*(-1j* 0.5 * (Y - ((-1)**ells)* Ymstar)), axis=-1)
         
         return hp, hc
 
@@ -2714,6 +2736,7 @@ class IMRPhenomNSBH(WaveFormModel):
         
         [4] `arXiv:1905.06011 <https://arxiv.org/abs/1905.06011>`_
     
+    :param float, optional fRef: Reference frequency of the waveform, in :math:`\\rm Hz`. If not provided, the minimum of the frequency grid will be used.
     :param bool, optional verbose: Boolean specifying if the code has to print additional details during execution.
     :param kwargs: Optional arguments to be passed to the parent class :py:class:`WaveFormModel`, such as ``is_chi1chi2``.
         
@@ -2728,7 +2751,7 @@ class IMRPhenomNSBH(WaveFormModel):
           but this can be raised if needed. In this case, it is necessary to change the name of the file assigned to self.path_xiTide_tab and the res input passed to _make_xiTide_interpolator())
     '''
     # All is taken from LALSimulation and arXiv:1508.07250, arXiv:1508.07253, arXiv:1509.00512, arXiv:1905.06011
-    def __init__(self, verbose=True, **kwargs):
+    def __init__(self, fRef=None, verbose=True, **kwargs):
         """
         Constructor method
         """
@@ -2737,6 +2760,7 @@ class IMRPhenomNSBH(WaveFormModel):
         # Dimensionless frequency (Mf) at which we define the end of the waveform
         fcutPar = 0.2
         self.verbose=verbose
+        self.fRef = fRef
         super().__init__('NSBH', fcutPar, is_tidal=True, **kwargs)
         
         self.QNMgrid_a       = onp.loadtxt(os.path.join(glob.WFfilesPath, 'QNMData_a.txt'))
@@ -2924,6 +2948,9 @@ class IMRPhenomNSBH(WaveFormModel):
         
         # LAL sets fRef as the minimum frequency, do the same
         fRef   = np.amin(fgrid, axis=0)
+        if self.fRef is not None:
+            fRef = M*glob.GMsun_over_c3*self.fRef
+            
         phiRef = np.where(fRef < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fRef**(2./3.)) + PhiInspcoeffs['third']*(fRef**(1./3.)) + PhiInspcoeffs['third_log']*(fRef**(1./3.))*np.log(np.pi*fRef)/3. + PhiInspcoeffs['log']*np.log(np.pi*fRef)/3. + PhiInspcoeffs['min_third']*(fRef**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fRef**(-2./3.)) + PhiInspcoeffs['min_one']/fRef + PhiInspcoeffs['min_four_thirds']*(fRef**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fRef**(-5./3.)) + (PhiInspcoeffs['one']*fRef + PhiInspcoeffs['four_thirds']*(fRef**(4./3.)) + PhiInspcoeffs['five_thirds']*(fRef**(5./3.)) + PhiInspcoeffs['two']*fRef*fRef)/eta, np.where(fRef<fMRDJoin, (beta1*fRef - beta3/(3.*fRef*fRef*fRef) + beta2*np.log(fRef))/eta + C1Int + C2Int*fRef, np.where(fRef < self.fcutPar, (-(alpha2/fRef) + (4.0/3.0) * (alpha3 * (fRef**(3./4.))) + alpha1 * fRef + alpha4 * np.arctan((fRef - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fRef,0.)))
 
         phis = np.where(fgrid < self.PHI_fJoin_INS, PhiInspcoeffs['initial_phasing'] + PhiInspcoeffs['two_thirds']*(fgrid**(2./3.)) + PhiInspcoeffs['third']*(fgrid**(1./3.)) + PhiInspcoeffs['third_log']*(fgrid**(1./3.))*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['log']*np.log(np.pi*fgrid)/3. + PhiInspcoeffs['min_third']*(fgrid**(-1./3.)) + PhiInspcoeffs['min_two_thirds']*(fgrid**(-2./3.)) + PhiInspcoeffs['min_one']/fgrid + PhiInspcoeffs['min_four_thirds']*(fgrid**(-4./3.)) + PhiInspcoeffs['min_five_thirds']*(fgrid**(-5./3.)) + (PhiInspcoeffs['one']*fgrid + PhiInspcoeffs['four_thirds']*(fgrid**(4./3.)) + PhiInspcoeffs['five_thirds']*(fgrid**(5./3.)) + PhiInspcoeffs['two']*fgrid*fgrid)/eta, np.where(fgrid<fMRDJoin, (beta1*fgrid - beta3/(3.*fgrid*fgrid*fgrid) + beta2*np.log(fgrid))/eta + C1Int + C2Int*fgrid, np.where(fgrid < self.fcutPar, (-(alpha2/fgrid) + (4.0/3.0) * (alpha3 * (fgrid**(3./4.))) + alpha1 * fgrid + alpha4 * np.arctan((fgrid - alpha5 * fring)/fdamp))/eta + C1MRD + C2MRD*fgrid,0.)))

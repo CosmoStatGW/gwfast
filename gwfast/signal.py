@@ -635,7 +635,7 @@ class GWSignal(object):
                     else:
                         raise ValueError('Single component to return has to be among Ap, Ac, Psip, Psic')
                 else:
-                    return (Ap - 1j*Ac)*np.exp(Psi*1j)
+                    return (Ap + 1j*Ac)*np.exp(Psi*1j)
                 #return np.sqrt(Ap*Ap + Ac*Ac)*np.exp((Psi+phiP)*1j)
         
     
@@ -1048,9 +1048,9 @@ class GWSignal(object):
         :param bool, optional computeDerivFinDiff: Boolean specifying if the derivatives have to be computed using numerical differentiation (finite differences) through the `numdifftools <https://github.com/pbrod/numdifftools>`_ package.
         :param bool, optional computeAnalyticalDeriv: Boolean specifying if the derivatives with respect to ``dL``, ``theta``, ``phi``, ``psi``, ``tcoal``, ``Phicoal`` and ``iota`` (the latter only for the fundamental mode in the non-precessing case) have to be computed analytically. This considerably speeds up the calculation and provides better accuracy.
         :param stepNDT: The step size to use in the computation with numerical differentiation (finite differences).
-        :type stepNDT: *float or* :py:class:`numdifftools.step_generators`
+        :type stepNDT: float or numdifftools.step_generators.MaxStepGenerator
         :param str methodNDT: The method to use in the computation with numerical differentiation (finite differences). This can be ``'central'``, ``'complex'``, ``'multicomplex'``, ``'forward'`` or ``'backward'``.
-        :return: Complete signal strain (complex), evaluated at the given parameters and frequency(ies).
+        :return: Complete signal strain derivatives (complex), evaluated at the given parameters and frequency(ies).
         :rtype: array
         
         """
