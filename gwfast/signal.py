@@ -173,7 +173,7 @@ class GWSignal(object):
             print('Jax  device count: %s' %str(jax.device_count()))
         
         if self.jitCompileDerivs:
-            self._SignalDerivatives_use = jit(self._SignalDerivatives, static_argnames=['use_chi1chi2', 'use_m1m2', 'computeAnalyticalDeriv', 'return_all', 'use_prec_ang', 'computeDerivFinDiff', 'stepNDT', 'methodNDT'])
+            self._SignalDerivatives_use = jit(self._SignalDerivatives, static_argnames=['use_chi1chi2', 'use_m1m2', 'computeAnalyticalDeriv', 'use_prec_ang', 'computeDerivFinDiff', 'stepNDT', 'methodNDT'])
         else:
             self._SignalDerivatives_use = self._SignalDerivatives
         
@@ -1018,7 +1018,7 @@ class GWSignal(object):
     
     
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=True, use_prec_ang=True, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=True, use_prec_ang=True, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central', **kwargs):
         """
         Compute the derivatives of the GW strain with respect to the parameters of the event(s) at given frequencies (in :math:`\\rm Hz`).
         
@@ -1292,7 +1292,7 @@ class GWSignal(object):
         if (not self.wf_model.is_HigherModes) and (not self.wf_model.is_Precessing):
             wfPhiGw = self.wf_model.Phi(f, **evParams)
             wfAmpl  = self.wf_model.Ampl(f, **evParams)
-            wfhp, wfhc = wfAmpl*np.exp(1j*wfPhiGw)*0.5*(1.+(np.cos(iota))**2), 1j*wfAmpl*np.exp(1j*wfPhiGw)*np.cos(iota)
+            wfhp, wfhc = wfAmpl*np.exp(-1j*wfPhiGw)*0.5*(1.+(np.cos(iota))**2), 1j*wfAmpl*np.exp(-1j*wfPhiGw)*np.cos(iota)
         else:
             # If the waveform includes higher modes, it is not possible to compute amplitude and phase separately, make all together
             wfhp, wfhc = self.wf_model.hphc(f, **evParams)
@@ -1485,7 +1485,7 @@ class GWSignal(object):
         def iota_par_deriv():
             
             if (not self.wf_model.is_HigherModes) and (not self.wf_model.is_Precessing):
-                wfhp_iotader, wfhc_iotader = -wfAmpl*np.exp(1j*wfPhiGw)*(np.cos(iota)*np.sin(iota)), -1j*wfAmpl*np.exp(1j*wfPhiGw)*np.sin(iota)
+                wfhp_iotader, wfhc_iotader = -wfAmpl*np.exp(-1j*wfPhiGw)*(np.cos(iota)*np.sin(iota)), -1j*wfAmpl*np.exp(-1j*wfPhiGw)*np.sin(iota)
                 return wfhp_iotader*Fp*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL)) + wfhc_iotader*Fc*np.exp(1j*(2.*np.pi*f*(tcoal*3600.*24.) - Phicoal + phiD + phiL))
             else:
                 # This derivative is computed numerically if the waveform contains higher modes
