@@ -24,6 +24,8 @@ import numpy as onp
 import argparse
 import h5py
 
+from jax import jit
+
 import gwfast.gwfastGlobals as glob
 from gwfast.gwfastGlobals import detectors as base_dets
 from gwfast.waveforms import TaylorF2_RestrictedPN, IMRPhenomD, IMRPhenomHM, IMRPhenomD_NRTidalv2, IMRPhenomNSBH
@@ -624,7 +626,10 @@ def main(idx, FLAGS):
         print('------ Waveform:------\n%s' %wf_model_name)
         print('------\n')
         
-
+        if (FLAGS.jit_Fisher) and (not wf_model.is_LAL):
+            jitCompileDerivs=True
+        else:
+            jitCompileDerivs=False
         
         mySignals = {}
 
@@ -640,7 +645,8 @@ def main(idx, FLAGS):
                     useEarthMotion = FLAGS.rot,
                     fmin=FLAGS.fmin, fmax=FLAGS.fmax,
                     IntTablePath=None, 
-                    DutyFactor=None ) #FLAGS.duty_factor) 
+                    DutyFactor=None,
+                    jitCompileDerivs=jitCompileDerivs) #FLAGS.duty_factor) 
             
 
         myNet = DetNet(mySignals) 
@@ -743,6 +749,7 @@ parser.add_argument("--rot", default=1, type=int, required=False, help='Int spec
 parser.add_argument("--lalargs", nargs='+', default=[ ], type=str, required=False, help='Specifications of the waveform when using ``LAL`` interface, separated by *single spacing*.')
 parser.add_argument("--return_all", default=0, type=int, required=False, help='Int specifying if, in case a network of detectors is used, the SNRs and Fishher matrices of the individual detector have to be stored (``1``) or not (``0``).')
 parser.add_argument("--seeds", nargs='+', default=[ ], type=int, required=False, help='List of seeds to set for the duty factors in individual detectors, to help reproducibility, separated by *single spacing*.') # This should be one per detector (one per arm for triangular shapes)
+parser.add_argument("--jit_Fisher", default=0, type=int, required=False, help='Int specifying if the Fisher function has to be jit compiled (``1``) or not (``0``). This works only if computing derivatives using JAX.')
 
 if __name__ =='__main__':
 

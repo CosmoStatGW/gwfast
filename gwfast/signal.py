@@ -173,7 +173,7 @@ class GWSignal(object):
             print('Jax  device count: %s' %str(jax.device_count()))
         
         if self.jitCompileDerivs:
-            self._SignalDerivatives_use = jax.jit(self._SignalDerivatives, static_argnums=(15,16,17,18,19))
+            self._SignalDerivatives_use = jit(self._SignalDerivatives, static_argnames=['use_chi1chi2', 'use_m1m2', 'computeAnalyticalDeriv', 'return_all', 'use_prec_ang', 'computeDerivFinDiff', 'stepNDT', 'methodNDT'])
         else:
             self._SignalDerivatives_use = self._SignalDerivatives
         
@@ -1018,7 +1018,7 @@ class GWSignal(object):
     
     
     
-    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=False, use_prec_ang=False, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
+    def _SignalDerivatives(self, fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., use_m1m2=False, use_chi1chi2=True, use_prec_ang=True, computeDerivFinDiff=False, computeAnalyticalDeriv=True, stepNDT=MaxStepGenerator(base_step=1e-5), methodNDT='central'):
         """
         Compute the derivatives of the GW strain with respect to the parameters of the event(s) at given frequencies (in :math:`\\rm Hz`).
         

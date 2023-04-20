@@ -202,6 +202,11 @@ Named Arguments
 
   Default: ``[]``
 
+--jit_Fisher
+  
+  Int specifying if the Fisher function has to be jit compiled (``1``) or not (``0``). This works only if computing derivatives using ``JAX``.
+  
+  Default: ``0``
 
 Script outputs
 --------------
