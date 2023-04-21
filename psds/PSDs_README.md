@@ -12,6 +12,16 @@ The folder contains ASDs for:
 * the 20 km detector tuned for post-merger signals (```cosmic_explorer_20km_pm```)
 * the 40 km detector tuned for low-freqency signals (```cosmic_explorer_40km_lf```)
 
+### ET\_designs\_comparison\_paper/
+
+Einstein Telescope ASDs from [*Science with the Einstein Telescope: a comparison of different designs*](https://arxiv.org/abs/2303.15923), available at [https://apps.et-gw.eu/tds/?content=3&r=18213](https://apps.et-gw.eu/tds/?content=3&r=18213).
+
+The folder contains two subfolders with ASDs for:
+
+* the high frequency (HF) only ET instrument with a length of 10 km (```ETLength10km```), 15 km (```ETLength15km```) and 20 km (```ETLength20km```), in the **HF_only/** folder
+* the full high frequency (HF) and low frequency (LF) ET instrument in the cryogenic design with a length of 10 km (```ETLength10km```), 15 km (```ETLength15km```) and 20 km (```ETLength20km```), in the **HFLF_cryo/** folder
+
+
 ### ET-0000A-18.txt
 
 Public [ET-D](https://arxiv.org/abs/1012.0908) sensnitivity curve. 
