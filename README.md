@@ -75,7 +75,8 @@ To install a JAX version for GPU or TPU proceed as explained in [https://github.
 
 ## Usage
 
-All details are reported in the accompanying paper [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) and some examples are in the [gwfast_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/gwfast_tutorial.ipynb>) notebook.
+All details are reported in the accompanying paper [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) and some examples are in the [gwfast_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/gwfast_tutorial.ipynb>) notebook. <a target="_blank" href="https://colab.research.google.com/github/CosmoStatGW/gwfast/blob/master/notebooks/gwfast_tutorial.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+</a>
 
 To initialise a *waveform* object simply run, e.g.
 
@@ -112,7 +113,8 @@ Finally, to compute the **covariance matrices** it is sufficient to
 CovMatr(FisherMatrs, events) 
 ```
 
-#### For a list of features implemented after the publication of [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) see the [NEW_FEATURES](<https://github.com/CosmoStatGW/gwfast/blob/master/NEW_FEATURES.md>) file and the [new\_features_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/new_features_tutorial.ipynb>) notebook
+#### For a list of features implemented after the publication of [arXiv:2207.06910](<https://arxiv.org/abs/2207.06910>) see the [NEW_FEATURES](<https://github.com/CosmoStatGW/gwfast/blob/master/NEW_FEATURES.md>) file and the [new\_features_tutorial](<https://github.com/CosmoStatGW/gwfast/blob/master/notebooks/new_features_tutorial.ipynb>) notebook <a target="_blank" href="https://colab.research.google.com/github/CosmoStatGW/gwfast/blob/master/notebooks/new_features_tutorial.ipynb"> <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+</a>
 
 ## Citation
 
