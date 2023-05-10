@@ -1,0 +1,51 @@
+[tool.poetry]
+name = "gwfast"
+version = "1.1.1"
+description = "A fisher matrix python package for GW studies"
+authors = ["Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>"]
+license = "GNU GPLv3"
+readme = ["README.md", "docs/README.md", "psds/PSDs_README.md"]
+repository = "https://github.com/CosmoStatGW/gwfast"
+documentation = "https://gwfast.readthedocs.io/en/latest/"
+keywords = ["python", "automatic-differentiation", "gravitational-waves", "fisher-information", "jax"]
+packages = [
+    { include = "gwfast" },
+    { include = "run" },
+]
+include = ["WFfiles/*.txt", "/WFfiles/*.h5", "psds/*", "psds/ce_curves/*", "psds/ET_designs_comparison_paper/*", "psds/LVC_O1O2O3/*", "psds/observing_scenarios_paper/*", "psds/unofficial_curves_all_dets/*"]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+numpy = ">=1.20.3"
+scipy = ">=1.6.3"
+astropy = "^5.2.1"
+h5py = "^3.2.1"
+mpmath = "^1.2.1"
+numdifftools = ">=0.9.40"
+schwimmbad = "^0.3.2"
+jax = {extras = ["cpu"], version = ">=0.2.20"}
+
+# External waveforms
+lalsuite = { version = "*", optional = true }
+teobresums = { version = "*", optional = true }
+
+# Optional for docs
+sphinx = { version = "5.3.0", optional = true }
+sphinx_rtd_theme = { version = ">=1.1.1", optional = true }
+nbsphinx = { version = ">=0.8.10", optional = true }
+myst-parser = { version = "^0.18.1", optional = true }
+sphinx-copybutton = { version = "^0.5.1", optional = true }
+readthedocs-sphinx-search = { version = "^0.1.2", optional = true }
+docutils = { version = "^0.17.1", optional = true }
+
+[tool.poetry.dev-dependencies]
+matplotlib = "*"
+
+[tool.poetry.extras]
+lal = ["lalsuite"]
+teobresum = ["teobresums"]
+docs = ["sphinx", "sphinx_rtd_theme", "nbsphinx", "myst-parser", "sphinx-copybutton", "readthedocs-sphinx-search", "docutils"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
