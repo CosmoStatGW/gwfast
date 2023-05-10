@@ -1024,7 +1024,7 @@ if __name__ =='__main__':
             print('Saving catalog of detected events...')
             
             if FLAGS.compute_fisher==False:
-                idxs_det = onp.arange(FLAGS.idx_in, idxf)[ onp.argwhere(snrs>FLAGS.snr_th) ]
+                idxs_det = onp.arange(0, idxf-FLAGS.idx_in)[ onp.argwhere(snrs>FLAGS.snr_th) ]
                 onp.savetxt(os.path.join(FLAGS.fout, 'idxs_det'+suffstr+'.txt'), idxs_det)    
                 
             
