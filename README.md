@@ -59,6 +59,13 @@ To install the package without cloning the git repository, and a CPU-only versio
 
 ```
 pip install --upgrade pip
+pip install gwfast
+```
+
+or 
+
+```
+pip install --upgrade pip
 pip install --upgrade "jax[cpu]" 
 pip install git+https://github.com/CosmoStatGW/gwfast
 ```

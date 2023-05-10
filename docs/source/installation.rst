@@ -3,7 +3,14 @@
 Installation
 ============
 
-``gwfast`` can be easily installed using pip:
+``gwfast`` can be easily installed using pip, either from `PyPI <https://pypi.org>`_:
+
+.. code-block:: console
+
+  $ pip install --upgrade pip
+  $ pip install gwfast
+
+or from `GitHub <https://github.com>`_:
 
 .. code-block:: console
 
