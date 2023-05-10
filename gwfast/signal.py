@@ -593,6 +593,10 @@ class GWSignal(object):
                     return np.unwrap(np.angle(hp))
                 elif (return_single_comp == 'Psic'):
                     return np.unwrap(np.angle(hc))
+                elif (return_single_comp == 'At'):
+                    return np.abs(hp + hc)
+                elif (return_single_comp == 'Psit'):
+                    return np.unwrap(np.angle(hp + hc))
                 else:
                     raise ValueError('Single component to return has to be among Ap, Ac, Psip, Psic')
             else:
@@ -614,6 +618,10 @@ class GWSignal(object):
                         return np.unwrap(np.angle(hp))
                     elif (return_single_comp == 'Psic'):
                         return np.unwrap(np.angle(hc))
+                    elif (return_single_comp == 'At'):
+                        return np.abs(hp + hc)
+                    elif (return_single_comp == 'Psit'):
+                        return np.unwrap(np.angle(hp + hc))
                     else:
                         raise ValueError('Single component to return has to be among Ap, Ac, Psip, Psic')
                 else:
@@ -632,6 +640,10 @@ class GWSignal(object):
                         return Psi #np.unwrap(Psi)
                     elif (return_single_comp == 'Psic'):
                         return Psi + np.pi*0.5 #np.unwrap(Psi + np.pi*0.5)
+                    elif (return_single_comp == 'At'):
+                        return np.abs(Ap + 1j*Ac)
+                    elif (return_single_comp == 'Psit'):
+                        return Psi + np.arctan2(np.real(Ac),np.real(Ap))
                     else:
                         raise ValueError('Single component to return has to be among Ap, Ac, Psip, Psic')
                 else:
@@ -1059,8 +1071,9 @@ class GWSignal(object):
             print('Computing derivatives...')
         # Function to compute the derivatives of a GW signal, both with JAX (automatic differentiation) and NumDiffTools (finite differences). It offers the possibility to compute directly the derivative of the complex signal. It is also possible to compute analytically the derivatives w.r.t. dL, theta, phi, psi, tcoal and Phicoal, and also iota in absence of HM or precessing spins.
         
-        if (self.wf_model.is_newtonian) and (self.verbose):
-            print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
+        if (self.wf_model.is_newtonian):
+            if self.verbose:
+                print('WARNING: In the Newtonian inspiral case the mass ratio and spins do not enter the waveform, and the corresponding Fisher matrix elements vanish, we then discard them.\n')
             
             if computeAnalyticalDeriv:
                 derivargs = (1)

@@ -6,3 +6,4 @@ notebooks/.ipynb_checkpoints
 data/
 results/
 docs/build/
+poetry.lock
