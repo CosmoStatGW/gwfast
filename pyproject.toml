@@ -4,7 +4,7 @@ version = "1.1.1"
 description = "A fisher matrix python package for GW studies"
 authors = ["Francesco Iacovelli <francesco.iacovelli@unige.ch>, Michele Mancarella <michele.mancarella@unige.ch>"]
 license = "GNU GPLv3"
-readme = ["README.md"]
+readme = ["README.md", "docs/README.md", "psds/PSDs_README.md"]
 repository = "https://github.com/CosmoStatGW/gwfast"
 documentation = "https://gwfast.readthedocs.io/en/latest/"
 keywords = ["python", "automatic-differentiation", "gravitational-waves", "fisher-information", "jax"]
@@ -12,7 +12,15 @@ packages = [
     { include = "gwfast" },
     { include = "run" },
 ]
-include = ["WFfiles/*.txt", "/WFfiles/*.h5", "psds/*", "psds/ce_curves/*", "psds/ET_designs_comparison_paper/*", "psds/LVC_O1O2O3/*", "psds/observing_scenarios_paper/*", "psds/unofficial_curves_all_dets/*"]
+include = [
+    { path = "WFfiles", format = ["sdist", "wheel"] },
+    { path = "psds", format = ["sdist", "wheel"] },
+    { path = "psds/ce_curves", format = ["sdist", "wheel"] },
+    { path = "psds/ET_designs_comparison_paper", format = ["sdist", "wheel"] },
+    { path = "psds/LVC_O1O2O3", format = ["sdist", "wheel"] },
+    { path = "psds/observing_scenarios_paper", format = ["sdist", "wheel"] },
+    { path = "psds/unofficial_curves_all_dets", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8"
