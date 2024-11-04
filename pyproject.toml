@@ -1,10 +1,13 @@
 [tool.poetry]
 name = "gwfast"
-version = "1.1.1"
+version = "1.1.2"
 description = "A fisher matrix python package for GW studies"
 authors = [
 	"Francesco Iacovelli <francesco.iacovelli@unige.ch>", 
 	"Michele Mancarella <michele.mancarella@unige.ch>"
+]
+maintainers = [
+    "Niccolo' Muttoni <niccolo.muttoni@unige.ch>",
 ]
 license = "GNU GPLv3"
 readme = ["README.md", "docs/README.md", "psds/PSDs_README.md"]
@@ -22,19 +25,20 @@ include = [
     { path = "psds/ET_designs_comparison_paper", format = ["sdist", "wheel"] },
     { path = "psds/LVC_O1O2O3", format = ["sdist", "wheel"] },
     { path = "psds/observing_scenarios_paper", format = ["sdist", "wheel"] },
-    { path = "psds/unofficial_curves_all_dets", format = ["sdist", "wheel"] }
+    { path = "psds/unofficial_curves_all_dets", format = ["sdist", "wheel"] },
+    { path = "gwfast/.patch", format = ["sdist", "wheel"] }
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8"
-numpy = ">=1.20.3"
+python = ">=3.9"
+numpy = "<=1.26.4"
 scipy = ">=1.6.3"
-astropy = "^5.2.1"
+astropy = "~6.0.0"
 h5py = "^3.2.1"
 mpmath = "^1.2.1"
-numdifftools = ">=0.9.40"
+numdifftools = "==0.9.41"
 schwimmbad = "^0.3.2"
-jax = {extras = ["cpu"], version = ">=0.2.20, <0.4.0"}
+jax = {extras = ["cpu"], version = ">=0.4.26, <=0.4.30"}
 
 # External waveforms
 lalsuite = { version = "*", optional = true }

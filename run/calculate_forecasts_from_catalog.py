@@ -35,6 +35,8 @@ from gwfast.fisherTools import compute_localization_region, fixParams, CheckFish
 from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population, save_data
 
 try:
+    import warnings
+    warnings.filterwarnings("ignore", "Wswiglal-redir-stdio")
     import lal
     from gwfast.waveforms import LAL_WF
 except ModuleNotFoundError:
@@ -720,7 +722,7 @@ def main(idx, FLAGS):
         print('------ Done for %s. ' %(wf_model_name ))
         myLog.close()
         
-  
+
 def mainMPI(i):
     # Just a workaround to make mpi work without starmap
     return main(i, FLAGS)
