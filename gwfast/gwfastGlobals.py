@@ -78,6 +78,12 @@ Average Earth radius, in kilometers (:math:`\\rm km`).
 
 :type: float
 """
+siderealDay = 23.9344696 # hours
+"""
+Sidereal day, in hours (:math:`\\rm hr`).
+
+:type: float
+"""
 clight = 2.99792458e5 # km/s
 """
 Speed of light in vacuum (:math:`c`), in kilometers per second (:math:`\\rm km / s`).

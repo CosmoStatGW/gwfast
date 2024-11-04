@@ -256,3 +256,10 @@ Conversion between the GPS time and the *Local Mean Sidereal Time* (LMST).
 .. note::
 
   It is possible to associate a GMST to each GPS time, but to each GMST an infinite number of GPS times is associated for periodicity, thus the inverse function is not provided.
+  
+.. note::
+  .. versionadded:: 1.1.2
+  
+  To avoid errors that can arise from the `astropy <https://www.astropy.org>`_ implementation when using times in the far future (having no `IERS <https://www.iers.org/IERS/EN/Home/home_node.html>`_ data), we provide an **approximate** function to compute the GMST.
+
+  .. autofunction:: gwfast.gwfastUtils.GPSt_to_GMST_alt

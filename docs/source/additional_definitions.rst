@@ -30,6 +30,8 @@ We here list the constants defined in the :py:class:`gwfastGlobals` module
 
 .. autodata:: gwfast.gwfastGlobals.REarth
 
+.. autodata:: gwfast.gwfastGlobals.siderealDay
+
 .. autodata:: gwfast.gwfastGlobals.f_isco
 
 .. autodata:: gwfast.gwfastGlobals.f_qK
