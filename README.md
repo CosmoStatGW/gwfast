@@ -28,6 +28,10 @@ gwfast/gwfast/
 					Covariance matrix and functions to perform sanity checks on the Fisher - condition number, inversion error, marginalization, localization area, plotting tools
 			├── network.py
 					A class to model a network of detectors with different locations
+			├── population/
+					Modules to perform Fisher forecasts on the accuracy of the reconstruction of the hyperparameters for a population of sources
+			├── stochastic/
+					Module to copute useful quantities related to stochastic gravitational wave searches
 
 gwfast/psds/ 
 			Some detector Power Spectral Densities 
@@ -36,7 +40,7 @@ gwfast/WFfiles/
 			Text files needed for waveform computation
 			
 gwfast/run/
-			Script to run in parallel on catalogs
+			Scripts to run in parallel on catalogs
 			
 gwfast/docs/ 
 			Code documentation in Sphinx
