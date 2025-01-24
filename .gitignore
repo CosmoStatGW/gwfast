@@ -1,6 +1,7 @@
 
 .DS_Store
 gwfast/__pycache__
+# gwfast/stochastic/__pycache__
 notebooks/.ipynb_checkpoints
 
 data/

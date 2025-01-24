@@ -22,6 +22,7 @@ sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR,PACKAGE_PARENT )))
 import copy
 import numpy as onp
 import argparse
+import configparser
 import h5py
 
 from jax import jit
@@ -754,6 +755,22 @@ parser.add_argument("--seeds", nargs='+', default=[ ], type=int, required=False,
 parser.add_argument("--jit_Fisher", default=0, type=int, required=False, help='Int specifying if the Fisher function has to be jit compiled (``1``) or not (``0``). This works only if computing derivatives using JAX.')
 
 if __name__ =='__main__':
+
+    if ".ini" in sys.argv[-1]:
+
+        config = configparser.ConfigParser()
+        config_file_path = sys.argv[-1]
+        config.read(config_file_path)
+        subconfig = config[__file__.split("/")[-1]]
+        FLAGS = config_conversion(subconfig)
+        with open(os.path.join(FLAGS.fout, "config_file.ini"), "w") as config_file:
+            config.write(config_file)
+        print("Using config file.")
+
+    else:
+
+        FLAGS = parser.parse_args()
+        print("Using arg parser.")
 
     FLAGS = parser.parse_args()
 

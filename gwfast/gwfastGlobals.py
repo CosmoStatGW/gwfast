@@ -78,9 +78,27 @@ Average Earth radius, in kilometers (:math:`\\rm km`).
 
 :type: float
 """
+RMoon = 1737.4 # km
+"""
+Average Moon radius, in kilometers (:math:`\\rm km`).
+
+:type: float
+"""
 siderealDay = 23.9344696 # hours
 """
 Sidereal day, in hours (:math:`\\rm hr`).
+
+:type: float
+"""
+SiderealPeriodMoon = 2360591.51 # s
+"""
+Lunar sidereal month duration, in seconds (:math:`\\rm s`).
+
+:type: float
+"""
+seconds_in_year = 365.2425*24.*60.*60.
+"""
+Conversion from year to seconds.
 
 :type: float
 """
@@ -127,24 +145,25 @@ detectors = { 'L1': { 'lat':30.563,
                      'xax':242.71636956358617,
                      'shape':'L',
                     },
-             
+
              'H1': { 'lat':46.455,
                      'long':-119.408,
                      'xax':170.99924234706103,
                      'shape':'L',
                     },
-             
+
              'Virgo': {'lat':43.631,
                      'long':10.504,
                      'xax':115.56756342034298,
                      'shape':'L',
                     },
-             
+
              'KAGRA': {'lat':36.412,
                      'long':137.306,
                      'xax':15.396,
                      'shape':'L',
                     },
+
             'LIGOI': {'lat':19.613,
                      'long':77.031,
                      'xax':287.384,
@@ -156,44 +175,48 @@ detectors = { 'L1': { 'lat':30.563,
                     'xax':0. ,
                     'shape':'T',
                    },
+
             'ETMR': {'lat': 50.+43./60.+23./3600.,
                     'long': 5.+55./60.+14./3600.,
                     'xax':0. ,
                     'shape':'T',
                    },
-            
+
             'ETSL': { 'lat': 40.+31./60.,
                       'long': 9.+25./60.,
                       'xax':45. ,
                       'shape':'L',
                     },
+
             'ETMRL45d': {'lat': 50.+43./60.+23./3600.,
                          'long': 5.+55./60.+14./3600.,
                          'xax':90. ,
                          'shape':'L',
                         },
+
             'ETMRLpar': {'lat': 50.+43./60.+23./3600.,
                          'long': 5.+55./60.+14./3600.,
                          'xax':45. ,
                          'shape':'L',
                         },
-            
+
             'CE1Id':{'lat':43.827,
                      'long':-112.825,
                      'xax':-45.,
                      'shape':'L',
                   },
+
             'CE2NM':{'lat':33.160,
                      'long':-106.480,
                      'xax':-105.,
                      'shape':'L',
                   },
+
             'CE2NSW':{'lat':-34.,
                      'long':145.,
                      'xax':0.,
                      'shape':'L',
                   },
-    
             }
 """
 Pre-defined detector locations and orientations.

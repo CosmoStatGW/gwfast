@@ -14,7 +14,7 @@ import numpy as np
 import jax.numpy as jnp
 import json
 import h5py
-
+import ast
 from gwfast import gwfastGlobals as glob
 
 ##############################################################################
@@ -1232,3 +1232,23 @@ class suppress_stdout_stderr(object):
         # Close all file descriptors
         for fd in self.null_fds + self.save_fds:
             os.close(fd)
+
+
+class config_conversion():
+
+    '''
+    Dummy class used to convert what the configparser read
+    into what the argparser create.
+    '''
+
+    def __init__(self, config_parser):
+
+        self.__config_parser = config_parser
+        for key, value in zip(config_parser.keys(), config_parser.values()):
+            try:
+                setattr(self, key, ast.literal_eval(value))
+            except (ValueError, SyntaxError):
+                if "[" and "]" in value:
+                    setattr(self, key, value.strip("][").split(", "))
+                else:
+                    setattr(self, key, value)

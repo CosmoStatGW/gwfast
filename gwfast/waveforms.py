@@ -298,7 +298,8 @@ class LAL_WF(WaveFormModel):
             raise ValueError('The chosen waveform is not available in LALSimulation, choose one among \n%s'%"\n".join(approx_name))
             
         self.approx = lalsim.GetApproximantFromString(approximant)
-        
+        if approximant=='IMRPhenomXHM':
+            compute_sequence=False
         self.compute_sequence = compute_sequence
         if (is_eccentric) and (self.compute_sequence):
             print('WARNING: SimInspiralChooseFDWaveformSequence function does not accept eccentricity as parameter, resorting to SimInspiralChooseFDWaveform.')
