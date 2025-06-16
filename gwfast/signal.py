@@ -782,7 +782,7 @@ class GWSignal(object):
     def FisherMatr(self, evParams, res=1000, df=None, spacing='geom', 
                    use_m1m2=False, use_chi1chi2=True, use_prec_ang=True,
                    computeDerivFinDiff=False, computeAnalyticalDeriv=True,
-                   return_all=False,
+                   return_all=False, return_derivatives=False, return_SNR_derivatives=False,
                    **kwargs):
         """
         Compute the *Fisher information matrix*, FIM, as a function of the parameters of the event(s).
@@ -797,6 +797,8 @@ class GWSignal(object):
         :param bool, optional computeDerivFinDiff: Boolean specifying if the derivatives have to be computed using numerical differentiation (finite differences) through the `numdifftools <https://github.com/pbrod/numdifftools>`_ package.
         :param bool, optional computeAnalyticalDeriv: Boolean specifying if the derivatives with respect to ``dL``, ``theta``, ``phi``, ``psi``, ``tcoal``, ``Phicoal`` and ``iota`` (the latter only for the fundamental mode in the non-precessing case) have to be computed analytically. This considerably speeds up the calculation and provides better accuracy.
         :param bool, optional return_all: Boolean specifying if, in the case of a triangular detector, the FIMs of the individual instruments have to be returned separately. In this case the return type is *list(array, array, array)*.
+        :param bool, optional return_derivatives: Boolean specifying if the derivatives of the individual detectors have to be returned (all separately). In this case ``return_all`` is set to ``True`` the return type is *list(array, array, ...), list(array, array, ...)*.
+        :param bool, optional return_SNR_derivatives: Boolean specifying if the derivatives of the SNR have to be returned. In this case ``return_all`` is set to ``True``, ``return_derivatives`` is set to ``False`` and the return type is *list(array, array, ...), list(array, array, ...)*.
         :param kwargs: Optional arguments to be passed to :py:class:`gwfast.signal.GWSignal._SignalDerivatives`, such as ``methodNDT``.
         :return: FIM(s) as a function of the parameters of the event(s). The shape is :math:`(N_{\\rm parameters}`, :math:`N_{\\rm parameters}`, :math:`N_{\\rm events})`.
         :rtype: 3-D array
@@ -907,6 +909,8 @@ class GWSignal(object):
                 print('Using LAL or TEOBResumS waveforms it is not possible to compute the derivatives using JAX automatic differentiation routines, being the functions written in C. Proceeding using numdifftools for numerical differentiation (finite differences)')
             
         allFishers=[]
+        allDerivs=[]
+        allSNRDerivs=[]
         
         if self.detector_shape=='L': 
             # Compute derivatives
@@ -928,7 +932,17 @@ class GWSignal(object):
             if self.DutyFactor is not None:
                 excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                 Fisher = Fisher*excl
+                if (return_derivatives) | (return_SNR_derivatives):
+                    FisherDerivs = FisherDerivs*excl[onp.newaxis,:,onp.newaxis]
             allFishers.append(Fisher)
+            if return_derivatives:
+                allDerivs.append(FisherDerivs)
+            if return_SNR_derivatives:
+                strain_full = self.GWstrain(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang, **kwargs)
+                SNRDerivs = onp.zeros((nParams,len(Mc)))
+                for alpha in range(nParams):
+                    SNRDerivs[alpha,:] = 4.*onp.trapz((strain_full*onp.conjugate(FisherDerivs[alpha,:,:]).T).real/strainGrids.real, fgrids.real, axis=0)
+                allSNRDerivs.append(SNRDerivs)
         else:
             #Fisher = onp.zeros((nParams,nParams,len(Mc)))
             if not self.compute2arms:
@@ -954,7 +968,17 @@ class GWSignal(object):
                     if self.DutyFactor is not None:
                         excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                         tmpFisher = tmpFisher*excl
+                        if (return_derivatives) | (return_SNR_derivatives):
+                            FisherDerivs = FisherDerivs*excl[onp.newaxis,:,onp.newaxis]
                     allFishers.append(tmpFisher)
+                    if return_derivatives:
+                        allDerivs.append(FisherDerivs)
+                    if return_SNR_derivatives:
+                        strain_full = self.GWstrain(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=i*60., is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang, **kwargs)
+                        SNRDerivs = onp.zeros((nParams,len(Mc)))
+                        for alpha in range(nParams):
+                            SNRDerivs[alpha,:] = 4.*onp.trapz((strain_full*onp.conjugate(FisherDerivs[alpha,:,:]).T).real/strainGrids.real, fgrids.real, axis=0)
+                        allSNRDerivs.append(SNRDerivs)
                     #Fisher += tmpFisher
             else:
             # The signal in 3 arms sums to zero for geometrical reasons, so we can use this to skip some calculations
@@ -980,9 +1004,21 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
+                    if (return_derivatives) | (return_SNR_derivatives):
+                        FisherDerivs1_ = FisherDerivs1*excl[onp.newaxis,:,onp.newaxis]
+                else:
+                    if (return_derivatives) | (return_SNR_derivatives):
+                        FisherDerivs1_ = FisherDerivs1
                 #Fisher += tmpFisher
                 allFishers.append(tmpFisher)
-                
+                if return_derivatives:
+                    allDerivs.append(FisherDerivs1_)
+                if return_SNR_derivatives:
+                    strain_full1 = self.GWstrain(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=0., is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang, **kwargs)
+                    SNRDerivs = onp.zeros((nParams,len(Mc)))
+                    for alpha in range(nParams):
+                        SNRDerivs[alpha,:] = 4.*onp.trapz((strain_full1*onp.conjugate(FisherDerivs1_[alpha,:,:]).T).real/strainGrids.real, fgrids.real, axis=0)
+                    allSNRDerivs.append(SNRDerivs)
                 
                 FisherDerivs2 = self._SignalDerivatives_use(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=60., use_m1m2=use_m1m2, use_chi1chi2=use_chi1chi2, use_prec_ang=use_prec_ang, computeAnalyticalDeriv=computeAnalyticalDeriv, computeDerivFinDiff=computeDerivFinDiff, **kwargs)
                 FisherDerivs2 = onp.array(FisherDerivs2)
@@ -1002,8 +1038,21 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
+                    if (return_derivatives) | (return_SNR_derivatives):
+                        FisherDerivs2_ = FisherDerivs2*excl[onp.newaxis,:,onp.newaxis]
+                else:
+                    if (return_derivatives) | (return_SNR_derivatives):
+                        FisherDerivs2_ = FisherDerivs2
                 #Fisher += tmpFisher
                 allFishers.append(tmpFisher)
+                if return_derivatives:
+                    allDerivs.append(FisherDerivs2_)
+                if return_SNR_derivatives:
+                    strain_full2 = self.GWstrain(fgrids, Mc, eta, dL, theta, phi, iota, psi, tcoal, Phicoal, chiS, chiA, chi1x, chi2x, chi1y, chi2y, LambdaTilde, deltaLambda, ecc, rot=60., is_m1m2=use_m1m2, is_chi1chi2=use_chi1chi2, is_prec_ang=use_prec_ang, **kwargs)
+                    SNRDerivs = onp.zeros((nParams,len(Mc)))
+                    for alpha in range(nParams):
+                        SNRDerivs[alpha,:] = 4.*onp.trapz((strain_full2*onp.conjugate(FisherDerivs2_[alpha,:,:]).T).real/strainGrids.real, fgrids.real, axis=0)
+                    allSNRDerivs.append(SNRDerivs)
                 
                 FisherDerivs3 = - (FisherDerivs1 + FisherDerivs2)
                     
@@ -1022,15 +1071,31 @@ class GWSignal(object):
                 if self.DutyFactor is not None:
                     excl = onp.random.choice([0,1],len(evParams['Mc']), p=[1.-self.DutyFactor,self.DutyFactor])
                     tmpFisher = tmpFisher*excl
+                    if (return_derivatives) | (return_SNR_derivatives):
+                        FisherDerivs3 = FisherDerivs3*excl[onp.newaxis,:,onp.newaxis]
                 #Fisher += tmpFisher
                 allFishers.append(tmpFisher)
+                if return_derivatives:
+                    allDerivs.append(FisherDerivs3)
+                if return_SNR_derivatives:
+                    strain_full3 = - (strain_full1 + strain_full2)
+                    SNRDerivs = onp.zeros((nParams,len(Mc)))
+                    for alpha in range(nParams):
+                        SNRDerivs[alpha,:] = 4.*onp.trapz((strain_full3*onp.conjugate(FisherDerivs3[alpha,:,:]).T).real/strainGrids.real, fgrids.real, axis=0)
+                    allSNRDerivs.append(SNRDerivs)
             
-        if return_all:
-            return allFishers
-        elif self.detector_shape=='T':
-            return onp.array(allFishers).sum(axis=0)
+        if (not return_derivatives) and (not return_SNR_derivatives):
+            if return_all:
+                return allFishers
+            elif self.detector_shape=='T':
+                return onp.array(allFishers).sum(axis=0)
+            else:
+                return allFishers[0]
         else:
-            return allFishers[0]
+            if return_derivatives:
+                return allFishers, allDerivs
+            else:
+                return allFishers, allSNRDerivs
     
     
     

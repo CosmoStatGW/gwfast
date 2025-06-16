@@ -81,7 +81,7 @@ class DetNet(object):
             return net_snr #onp.squeeze(onp.sqrt(sum( onp.array(list(snrs.values()),dtype=object)**2)))
         
     
-    def FisherMatr(self, evParams, return_all=False, **kwargs):
+    def FisherMatr(self, evParams, return_all=False, return_derivatives=False, return_SNR_derivatives=False, **kwargs):
         #nparams = self.signals[list(self.signals.keys())[0]].wf_model.nParams
         #nevents = len(evParams[list(evParams.keys())[0]])
         #totF = onp.zeros((nparams,nparams,nevents))
@@ -90,6 +90,8 @@ class DetNet(object):
         
         :param dict(array, array, ...) evParams: Dictionary containing the parameters of the event(s), as in :py:data:`events`.
         :param bool, optional return_all: Boolean specifying if the FIMs of the individual detectors have to be returned separately, together with the network FIM(s). In this case the return type is *dict(array, array, ...)*.
+        :param bool, optional return_derivatives: Boolean specifying if the derivatives of the individual detectors have to be returned (all separately). In this case ``return_all`` is set to ``True`` the return type is *dict(array, array, ...), dict(array, array, ...)*.
+        :param bool, optional return_SNR_derivatives: Boolean specifying if the derivatives of the SNR have to be returned. In this case ``return_all`` is set to ``True``, ``return_derivatives`` is set to ``False`` and the return type is *dict(array, array, ...), dict(array, array, ...)*.
         :param kwargs: Optional arguments to be passed to :py:class:`gwfast.signal.GWSignal.FisherMatr`, such as ``res`` or ``use_m1m2``.
         :return: FIM(s) as a function of the parameters of the event(s). The shape is :math:`(N_{\\rm parameters}`, :math:`N_{\\rm parameters}`, :math:`N_{\\rm events})`.
         :rtype: 3-D array
@@ -97,27 +99,57 @@ class DetNet(object):
         """
         allF={}
         utils.check_evparams(evParams)
-        for d in self.signals.keys():
-            if self.verbose:
-                print('Computing Fisher for %s...' %d)
-            F_ = self.signals[d].FisherMatr(evParams, return_all=return_all, **kwargs) 
-            #totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
-            if self.signals[d].detector_shape=='T' and return_all:
-                for i in range(3):
-                   allF[d+'_%s'%i] = F_[i]
-            elif self.signals[d].detector_shape=='L' and return_all:
-                allF[d] = F_[0]
-            else:
-                allF[d] = F_
-        if self.verbose:
-            print('Done.')
-        totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
-        if return_all:
-            allF['net'] = totF #sum(allF.values())
-            return allF
-        else:
-            return totF #sum(allF.values())
         
+        if (not return_derivatives) and (not return_SNR_derivatives):
+            for d in self.signals.keys():
+                if self.verbose:
+                    print('Computing Fisher for %s...' %d)
+                F_ = self.signals[d].FisherMatr(evParams, return_all=return_all, **kwargs) 
+                #totF +=  self.signals[d].FisherMatr(evParams, **kwargs) 
+                if self.signals[d].detector_shape=='T' and return_all:
+                    for i in range(3):
+                        allF[d+'_%s'%i] = F_[i]
+                elif self.signals[d].detector_shape=='L' and return_all:
+                    allF[d] = F_[0]
+                else:
+                    allF[d] = F_
+            if self.verbose:
+                print('Done.')
+            totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
+            if return_all:
+                allF['net'] = totF #sum(allF.values())
+                return allF
+            else:
+                return totF #sum(allF.values())
+        else:
+            return_all=True
+            allDer={}
+            for d in self.signals.keys():
+                if self.verbose:
+                    print('Computing Fisher for %s...' %d)
+                F_, D_ = self.signals[d].FisherMatr(evParams, return_all=return_all, return_derivatives=return_derivatives, return_SNR_derivatives=return_SNR_derivatives, **kwargs)
+                if self.signals[d].detector_shape=='T':
+                    for i in range(3):
+                        allF[d+'_%s'%i] = F_[i]
+                        allDer[d+'_%s'%i] = D_[i]
+                elif self.signals[d].detector_shape=='L':
+                    allF[d] = F_[0]
+                    allDer[d] = D_[0]
+            
+            if return_SNR_derivatives:
+                if 'SNRs' in kwargs.keys():
+                    SNRs_net = kwargs['SNRs']
+                else:
+                    SNRs_net = self.SNR(evParams, return_all=False)
+                    
+                allDer['net'] = onp.array([allDer[k] for k in allDer.keys()]).sum(axis=0)/SNRs_net
+            
+            if self.verbose:
+                print('Done.')
+            totF = onp.array([allF[k] for k in allF.keys()]).sum(axis=0)
+            allF['net'] = totF 
+            
+            return allF, allDer
         
 
     def optimal_location(self, tcoal, is_tGPS=False):

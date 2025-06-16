@@ -33,7 +33,7 @@ from gwfast.waveforms import TaylorF2_RestrictedPN, IMRPhenomD, IMRPhenomHM, IMR
 from gwfast.signal import GWSignal
 from gwfast.network import DetNet
 from gwfast.fisherTools import compute_localization_region, fixParams, CheckFisher, CovMatr, compute_inversion_error
-from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population, save_data
+from gwfast.gwfastUtils import  get_events_subset, save_detectors, load_population, save_data, config_conversion
 
 try:
     import warnings
@@ -313,9 +313,6 @@ def delete_files(idxin, idxf, out_path):
         print(e)
         
         
-
-
-
 def load_snrs_all(out_path, suff=''):
     fname=os.path.join(out_path, 'all_snrs'+suff+'.hdf5') #'all_snrs'+suff+'.hdf5'
     print('Loading all snrs files. Names of snrs: %s,' %(fname))
@@ -358,7 +355,7 @@ def to_file_all(snrs, fishers, out_path, suff='', ):
                 pg.create_dataset(pn, data=snrs[pn], compression='gzip', shuffle=False, )
             except TypeError:
                 pg.create_dataset(pn, data=onp.array([snrs[pn],]), compression='gzip', shuffle=False, )
-     
+    
     if fishers is not None:
         print('Saving all fishers to files. Names of fishers: %s' %(fname_out_fish))
         with h5py.File(fname_out_fish, 'a') as f:
@@ -372,7 +369,38 @@ def to_file_all(snrs, fishers, out_path, suff='', ):
                 print('Saving %s at position %s...' %(pn, i))
                 pg.create_dataset(pn, data=fishers[pn], compression='gzip', shuffle=False, )
 
-    
+def load_derivatives_all(out_path, suff='', isder_SNR=False, verbose=True):
+    if not isder_SNR:
+        fname=os.path.join(out_path, 'all_derivatives'+suff+'.hdf5')
+    else:
+        fname=os.path.join(out_path, 'all_derivatives_SNR'+suff+'.hdf5')
+    if verbose:
+        print('Loading all derivatives files. Names: %s,' %(fname))
+    allderivatives={}
+    with h5py.File(fname, 'r') as derivs:
+        for det in derivs['derivative'].keys():
+            allderivatives[det] = onp.array(derivs['derivative'][det])
+    return allderivatives
+
+def to_file_derivatives_all(derivatives_all, out_path, suff='', isder_SNR=False, verbose=True):
+
+    if not isder_SNR:
+        fname_out_derivs = os.path.join(out_path, 'all_derivatives'+suff+'.hdf5')
+    else:
+        fname_out_derivs = os.path.join(out_path, 'all_derivatives_SNR'+suff+'.hdf5')
+    if verbose:
+        print('Saving all derivatives to files. Names of derivatives: %s' %(fname_out_derivs))
+    with h5py.File(fname_out_derivs, 'a') as f:
+        try:
+            del f['derivative']
+        except:
+            pass
+        pg = f.create_group('derivative')
+
+        for i,pn in enumerate(derivatives_all.keys()):
+            if verbose:
+                print('Saving %s at position %s...' %(pn, i))
+            pg.create_dataset(pn, data=derivatives_all[pn], compression='gzip', shuffle=False, ) 
 
 #####################################################################################
 # ACTUAL COMPUTATIONS OF FISHERS AND ERRORS
@@ -469,29 +497,46 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
         cond_numbers = onp.full(nevents, onp.nan)
         totF = onp.full( final_fisher_shape, onp.nan)
         Fres = onp.full( final_fisher_shape, onp.nan)
-        
-        
+        if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+            derivatives_all = {}
         
     else:
         # Fisher
         tFinit=  time.time()
-        
-        Fres_df1_ = net.FisherMatr( events_det, 
-                                              res=1000, 
-                                              df=None, 
-                                              spacing='geom', 
-                                              use_chi1chi2=True, 
-                                              computeAnalyticalDeriv=True, 
-                                              return_all=True ) #FLAGS.return_all)
+        if (not FLAGS.return_derivatives) and (not FLAGS.return_snr_derivatives):
+            Fres_df1_ = net.FisherMatr( events_det, 
+                                        res=1000, 
+                                        df=None, 
+                                        spacing='geom', 
+                                        use_chi1chi2=True, 
+                                        computeAnalyticalDeriv=True, 
+                                        return_all=True ) #FLAGS.return_all)
+        else:
+            
+            Fres_df1_, derivatives_all_ = net.FisherMatr(events_det,
+                                                        res=1000, 
+                                                        df=None, 
+                                                        spacing='geom',
+                                                        use_chi1chi2=True,
+                                                        computeAnalyticalDeriv=True,
+                                                        return_all=True, 
+                                                        return_derivatives=FLAGS.return_derivatives,
+                                                        return_SNR_derivatives=FLAGS.return_snr_derivatives)
         
         
         if (FLAGS.duty_factor is None) or (FLAGS.duty_factor>=1):
             Fres_ = copy.deepcopy(Fres_df1_)
+            if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+                derivatives_all = derivatives_all_
         else:
             print('Imposing duty factor...')
             Fres_ = copy.deepcopy(Fres_df1_)
+            if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+                derivatives_all = copy.deepcopy(derivatives_all_)
             
             net_F = onp.zeros((npar, npar, nevents_det))
+            if FLAGS.return_snr_derivatives:
+                net_SNRder = onp.zeros((npar, nevents_det))
             for i,key in enumerate(net.signals):
                 
                 if key!='net':
@@ -500,13 +545,28 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
                         Fres_[key] = Fres_[key]*is_duty_applied_det[key]
                         net_F += Fres_[key]
                         
+                        if FLAGS.return_derivatives:
+                            derivatives_all[key] = derivatives_all[key]*is_duty_applied_det[key][onp.newaxis,:,onp.newaxis]
+                        elif FLAGS.return_snr_derivatives:
+                            derivatives_all[key] = derivatives_all[key]*is_duty_applied_det[key][onp.newaxis,:]
+                            net_SNRder += derivatives_all[key]
+                        
                     elif net.signals[key].detector_shape=='T':
                         for i_arm in range(3):
                             #print('For %s, is_duty_applied_det=%s' %(key+'_%s'%i_arm, str(is_duty_applied_det[key+'_%s'%i_arm])))
                             Fres_[key+'_%s'%i_arm] = Fres_[key+'_%s'%i_arm]*is_duty_applied_det[key+'_%s'%i_arm]
                             net_F += Fres_[key+'_%s'%i_arm]
+                            
+                            if FLAGS.return_derivatives:
+                                derivatives_all[key+'_%s'%i_arm] = derivatives_all[key+'_%s'%i_arm]*is_duty_applied_det[key+'_%s'%i_arm][onp.newaxis,:,onp.newaxis]
+                            elif FLAGS.return_snr_derivatives:
+                                derivatives_all[key+'_%s'%i_arm] = derivatives_all[key+'_%s'%i_arm]*is_duty_applied_det[key+'_%s'%i_arm][onp.newaxis,:]
+                                net_SNRder += derivatives_all[key+'_%s'%i_arm]
                     
             Fres_['net'] = net_F
+            
+            if FLAGS.return_snr_derivatives:
+                derivatives_all['net'] = net_SNRder/snrs[detected]
         
         totF_ = Fres_['net']
    
@@ -569,12 +629,10 @@ def compute_errs(events, net, FLAGS, i_in, i_f):
             my_sky_area_90 = onp.full(totF.shape[-1], onp.nan)
             cond_numbers = onp.full(totF.shape[-1], onp.nan)
     
-
-    return snrs_all, Fres, eps_dL, Cov_dL, my_sky_area_90, cond_numbers, idxs_detected
-
-
-
-
+    if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+        return snrs_all, Fres, derivatives_all, eps_dL, Cov_dL, my_sky_area_90, cond_numbers, idxs_detected
+    else:
+        return snrs_all, Fres, eps_dL, Cov_dL, my_sky_area_90, cond_numbers, idxs_detected
 
 def main(idx, FLAGS):
         
@@ -672,14 +730,20 @@ def main(idx, FLAGS):
             
             i_in = idxin+FLAGS.idx_in
             i_f = idxf+FLAGS.idx_in
-
             
             print('\nIn this chunk we have %s events, from %s to %s' %(nevents_chunk, i_in,  i_f  ))
             
-         
-            snrs_all, F_all, eps_dL, Cov_dL, my_sky_area_90, condition_numbers, idxs_detected = compute_errs(ev_chunk, myNet, FLAGS, i_in, i_f)                      
+            # to name output files
             suffstr = '_'+str(idxin+FLAGS.idx_in)+'_to_'+str(idxf+FLAGS.idx_in)
-        
+            if FLAGS.resume_run>0:
+                if os.path.exists(os.path.join(FLAGS.fout, 'snrs'+suffstr+'.txt')):
+                    print('Batch already present, skipping...')
+                    continue
+            if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+                snrs_all, F_all, derivatives_all, eps_dL, Cov_dL, my_sky_area_90, condition_numbers, idxs_detected = compute_errs(ev_chunk, myNet, FLAGS, i_in, i_f)                      
+            else: 
+                snrs_all, F_all, eps_dL, Cov_dL, my_sky_area_90, condition_numbers, idxs_detected = compute_errs(ev_chunk, myNet, FLAGS, i_in, i_f)                      
+            
             if FLAGS.return_all:
                 
                 snrs = snrs_all['net']
@@ -710,6 +774,11 @@ def main(idx, FLAGS):
             if save:
                 errs = onp.array([onp.sqrt(Cov_dL[i, i]) for i in range(totF.shape[0])])  
                 to_file(snrs, totF, eps_dL, Cov_dL, my_sky_area_90, errs, idxs_detected, FLAGS.fout, suff=suffstr, cond_numbers=condition_numbers)
+                
+                if FLAGS.return_derivatives:
+                    to_file_derivatives_all(derivatives_all, FLAGS.fout, suff=suffstr)
+                elif FLAGS.return_snr_derivatives:    
+                    to_file_derivatives_all(derivatives_all, FLAGS.fout, suff=suffstr, isder_SNR=True)
             else:
                 if onp.ndim(snrs)==0 or onp.isscalar(snrs):
                     snrs = onp.array([snrs,])
@@ -751,8 +820,11 @@ parser.add_argument("--params_fix", nargs='+', default=[ ], type=str, required=F
 parser.add_argument("--rot", default=1, type=int, required=False, help='Int specifying if the effect of the rotation of the Earth has to be included in the analysis (``1``) or not (``0``).')
 parser.add_argument("--lalargs", nargs='+', default=[ ], type=str, required=False, help='Specifications of the waveform when using ``LAL`` interface, separated by *single spacing*.')
 parser.add_argument("--return_all", default=0, type=int, required=False, help='Int specifying if, in case a network of detectors is used, the SNRs and Fishher matrices of the individual detector have to be stored (``1``) or not (``0``).')
+parser.add_argument("--return_derivatives", default=0, type=int, required=False, help='Int specifying if the derivatives have to be returned (``1``) or not (``0``). If 1, --return_all is set to 1 automatically.')
+parser.add_argument("--return_snr_derivatives", default=0, type=int, required=False, help='Int specifying if the derivatives of the SNR have to be returned (``1``) or not (``0``). If 1, --return_all is set to 1 and --return_derivatives is set to 0 automatically.')
 parser.add_argument("--seeds", nargs='+', default=[ ], type=int, required=False, help='List of seeds to set for the duty factors in individual detectors, to help reproducibility, separated by *single spacing*.') # This should be one per detector (one per arm for triangular shapes)
 parser.add_argument("--jit_Fisher", default=0, type=int, required=False, help='Int specifying if the Fisher function has to be jit compiled (``1``) or not (``0``). This works only if computing derivatives using JAX.')
+parser.add_argument("--resume_run", default=0, type=int, required=False, help='Int specifying whether to resume previous run. In this case the parent seed structure is preserved.')
 
 if __name__ =='__main__':
 
@@ -786,6 +858,14 @@ if __name__ =='__main__':
         onp.random.seed(None)
         for i in range(len(tmpNet.keys())):
             FLAGS.seeds = FLAGS.seeds + [onp.random.randint(2**32 - 1, size=1)[0]]
+    
+    if FLAGS.return_derivatives == 1 and FLAGS.return_snr_derivatives == 1:
+        print("Setting --return_snr_derivatives to 1 automatically sets --return_derivatives to 0 too.")
+        FLAGS.return_derivatives = 0
+
+    if ((FLAGS.return_derivatives == 1) or (FLAGS.return_snr_derivatives == 1)) and FLAGS.return_all == 0:
+        print("Setting --return_derivatives or --return_snr_derivatives to 1 automatically sets --return_all to 1 too.")
+        FLAGS.return_all = 1
         
     #####################################################################################
     # LOAD EVENTS
@@ -1010,20 +1090,34 @@ if __name__ =='__main__':
                         snrs_all_ = load_snrs_all(FLAGS.fout, suff=suff_batch)
                         if load_fishers:
                             fishers_all_ = load_fishers_all(FLAGS.fout, suff=suff_batch)
+                            if FLAGS.return_derivatives:
+                                derivatives_all_ = load_derivatives_all(FLAGS.fout, suff=suff_batch)
+                            elif FLAGS.return_snr_derivatives:
+                                derivatives_all_ = load_derivatives_all(FLAGS.fout, suff=suff_batch, isder_SNR=True)
+                                
                         if it==0 and p==0:
                             snrs_all = snrs_all_
                             if load_fishers:
                                 fishers_all = fishers_all_
+                                if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+                                    derivatives_all = derivatives_all_
                                 fishers_initialised = True
                         else:
                             if (not fishers_initialised) and (load_fishers):
                                 fishers_all = fishers_all_
                                 fishers_initialised = True
                                 load_fishers=False
+                                if (FLAGS.return_derivatives) or (FLAGS.return_snr_derivatives):
+                                    derivatives_all = derivatives_all_
                             for k in snrs_all_.keys():
                                 snrs_all[k] = onp.append(snrs_all[k], snrs_all_[k])
                                 if (load_fishers) and (fishers_initialised):
                                     fishers_all[k] = onp.append(fishers_all[k], fishers_all_[k], axis=-1)
+                                    if FLAGS.return_derivatives:
+                                        if k != "net":
+                                            derivatives_all[k] = onp.append(derivatives_all[k], derivatives_all_[k], axis=1)
+                                    elif FLAGS.return_snr_derivatives:
+                                        derivatives_all[k] = onp.append(derivatives_all[k], derivatives_all_[k], axis=1)
                     
                     pin = pf
     
@@ -1038,6 +1132,10 @@ if __name__ =='__main__':
                 to_file_all(snrs_all, None, FLAGS.fout, suff=suffstr)
             else:
                 to_file_all(snrs_all, fishers_all, FLAGS.fout, suff=suffstr)
+                if FLAGS.return_derivatives:
+                    to_file_derivatives_all(derivatives_all, FLAGS.fout, suff=suffstr)
+                elif FLAGS.return_snr_derivatives:
+                    to_file_derivatives_all(derivatives_all, FLAGS.fout, suff=suffstr, isder_SNR=True)
         
         if ndet_tot>0:        
             print('Saving catalog of detected events...')
@@ -1059,6 +1157,17 @@ if __name__ =='__main__':
                     pf =  pin+all_batch_sizes[it, p]
                     if pf>pin:
                         delete_files(pin, pf, FLAGS.fout)
+                        suffstr = '_'+str(pin)+'_to_'+str(pf)
+                        if FLAGS.return_derivatives:
+                            try:
+                                os.remove(os.path.join(FLAGS.fout, 'all_derivatives'+suffstr+'.hdf5'))
+                            except Exception as e:
+                                print(e)
+                        if FLAGS.return_snr_derivatives:
+                            try:
+                                os.remove(os.path.join(FLAGS.fout, 'all_derivatives_SNR'+suffstr+'.hdf5'))
+                            except Exception as e:
+                                print(e)
                         pin = pf
     
 
